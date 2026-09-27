@@ -1,0 +1,309 @@
+diff --git a/framework/update/internal/updateconfiguration.cpp b/framework/update/internal/updateconfiguration.cpp
+--- a/framework/update/internal/updateconfiguration.cpp
++++ b/framework/update/internal/updateconfiguration.cpp
+@@ -54,7 +54,9 @@ void UpdateConfiguration::init()
+ #endif
+     settings()->setDefaultValue(ALLOW_UPDATE_ON_PRERELEASE, Val(allowUpdateOnPreRelease));
+ 
+-    settings()->setDefaultValue(AUTO_DOWNLOAD_KEY, Val(true));
++    // MillerScore checks GitHub for release metadata, but never downloads a
++    // package in the background unless the user explicitly opts in.
++    settings()->setDefaultValue(AUTO_DOWNLOAD_KEY, Val(false));
+ }
+ 
+ bool UpdateConfiguration::isAppUpdatable() const
+diff --git a/framework/update/internal/appupdateservice.cpp b/framework/update/internal/appupdateservice.cpp
+--- a/framework/update/internal/appupdateservice.cpp
++++ b/framework/update/internal/appupdateservice.cpp
+@@ -83,24 +83,35 @@ static PrevReleasesNotesList parsePreviousReleasesNotes(const QByteArray& json)
+ 
+     QJsonParseError err;
+     QJsonDocument jsonDoc = QJsonDocument::fromJson(json, &err);
+-    if (err.error != QJsonParseError::NoError || !jsonDoc.isObject()) {
++    if (err.error != QJsonParseError::NoError || (!jsonDoc.isObject() && !jsonDoc.isArray())) {
+         LOGE() << "failed parse, err: " << err.errorString();
+         return result;
+     }
+ 
+-    QJsonObject jsonObject = jsonDoc.object();
+-
+-    if (jsonObject.empty()) {
+-        LOGE() << "failed parse, no jsonObject";
+-        return result;
+-    }
+-
+-    QJsonArray releases = jsonObject.value("releases").toArray();
++    // The upstream service wraps releases in an object; GitHub's Releases API
++    // returns the array directly. Supporting both keeps the framework reusable.
++    QJsonArray releases = jsonDoc.isArray() ? jsonDoc.array() : jsonDoc.object().value("releases").toArray();
+     for (const QJsonValue& release : releases) {
+         QJsonObject releaseObj = release.toObject();
+-        std::string version = releaseObj.value("version").toString().toStdString();
++        QString version = releaseObj.value("version").toString();
++        if (version.isEmpty()) {
++            version = releaseObj.value("tag_name").toString();
++            if (version.startsWith('v', Qt::CaseInsensitive)) {
++                version.remove(0, 1);
++            }
++        }
++
++        QString notes = releaseObj.value("notes").toString();
++        if (notes.isEmpty()) {
++            notes = releaseObj.value("bodyMarkdown").toString();
++        }
++        if (notes.isEmpty()) {
++            notes = releaseObj.value("body").toString();
++        }
+ 
+-        result.push_back({ std::move(version), releaseObj.value("notes").toString().toStdString() });
++        if (!version.isEmpty()) {
++            result.push_back({ version.toStdString(), notes.toStdString() });
++        }
+     }
+ 
+     return result;
+@@ -439,29 +450,46 @@ RetVal<ReleaseInfo> AppUpdateService::parseRelease(const QByteArray& json) const
+ {
+     QJsonParseError err;
+     QJsonDocument jsonDoc = QJsonDocument::fromJson(json, &err);
+-    if (err.error != QJsonParseError::NoError || !jsonDoc.isObject()) {
++    if (err.error != QJsonParseError::NoError || (!jsonDoc.isObject() && !jsonDoc.isArray())) {
+         return make_ret(Err::ReleaseInfoParseError, err.errorString().toStdString());
+     }
+ 
+-    QJsonObject release = jsonDoc.object();
+-    QJsonObject assetObj = resolveReleaseAsset(release);
+-    if (assetObj.empty()) {
+-        return make_ret(Err::ReleaseInfoParseError, "No release asset");
++    QJsonObject release = jsonDoc.isArray() && !jsonDoc.array().empty()
++                          ? jsonDoc.array().first().toObject()
++                          : jsonDoc.object();
++    if (release.empty()) {
++        return make_ret(Err::ReleaseInfoParseError, "No release");
+     }
+ 
++    QJsonObject assetObj = resolveReleaseAsset(release);
++
+     QString tagName = release.value("tag_name").toString();
+-    QString version = tagName.replace("v", "");
++    QString version = tagName;
++    if (version.startsWith('v', Qt::CaseInsensitive)) {
++        version.remove(0, 1);
++    }
+     if (version.isEmpty()) {
+         return make_ret(Err::ReleaseInfoParseError, "No release version");
+     }
+ 
+     RetVal<ReleaseInfo> result;
+     result.ret = muse::make_ok();
+-    result.val.fileName = assetObj.value("name").toString().toStdString();
+-    result.val.fileUrl = assetObj.value("browser_download_url").toString().toStdString();
+-    result.val.fileSize = static_cast<uint64_t>(std::max<qint64>(assetObj.value("size").toInteger(), 0));
++    if (!assetObj.empty()) {
++        result.val.fileName = assetObj.value("name").toString().toStdString();
++        result.val.fileUrl = assetObj.value("browser_download_url").toString().toStdString();
++        result.val.fileSize = static_cast<uint64_t>(std::max<qint64>(assetObj.value("size").toInteger(), 0));
++    } else {
++        // A source-only GitHub release is still a valid newer version. In that
++        // case the UI opens the release page instead of pretending a package
++        // can be installed automatically.
++        result.val.fileUrl = release.value("html_url").toString().toStdString();
++    }
+     result.val.version = version.toStdString();
+-    result.val.notes = release.value("bodyMarkdown").toString().toStdString();
++    QString notes = release.value("bodyMarkdown").toString();
++    if (notes.isEmpty()) {
++        notes = release.value("body").toString();
++    }
++    result.val.notes = notes.toStdString();
+ 
+     return result;
+ }
+diff --git a/framework/update/internal/appupdatescenario.h b/framework/update/internal/appupdatescenario.h
+--- a/framework/update/internal/appupdatescenario.h
++++ b/framework/update/internal/appupdatescenario.h
+@@ -27,6 +27,7 @@
+ #include "modularity/ioc.h"
+ 
+ #include "interactive/iinteractive.h"
++#include "interactive/iplatforminteractive.h"
+ #include "actions/iactionsdispatcher.h"
+ #include "multiwindows/imultiwindowsprovider.h"
+ #include "network/inetworkinformation.h"
+@@ -41,6 +42,7 @@ class AppUpdateScenario : public IAppUpdateScenario, public Contextable, public
+     GlobalInject<mi::IMultiWindowsProvider> multiwindowsProvider;
+     GlobalInject<IUpdateConfiguration> configuration;
+     GlobalInject<network::INetworkInformation> networkInformation;
++    GlobalInject<IPlatformInteractive> platformInteractive;
+     ContextInject<IInteractive> interactive = { this };
+     ContextInject<actions::IActionsDispatcher> dispatcher = { this };
+     ContextInject<IAppUpdateService> service = { this };
+diff --git a/framework/update/internal/appupdatescenario.cpp b/framework/update/internal/appupdatescenario.cpp
+--- a/framework/update/internal/appupdatescenario.cpp
++++ b/framework/update/internal/appupdatescenario.cpp
+@@ -150,6 +150,7 @@ Promise<Ret> AppUpdateScenario::showReleaseInfo(const ReleaseInfo& info)
+     query.addParam("appName", Val(application()->title().toStdString()));
+     query.addParam("notes", Val(info.notes));
+     query.addParam("previousReleasesNotes", Val(releasesNotesToValList(info.previousReleasesNotes)));
++    query.addParam("externalDownload", Val(info.fileName.empty()));
+ 
+     return interactive()->open(query).then<Ret>(this, [this, info](const Val& val, auto resolve) {
+         const QString actionCode = val.toQString();
+@@ -203,6 +204,19 @@ Promise<Ret> AppUpdateScenario::askToRetryOnNotEnoughDiskSpace(const Ret& error,
+ 
+ Promise<Ret> AppUpdateScenario::downloadRelease()
+ {
++    const ReleaseInfo& info = service()->lastCheckResult().val;
++    if (info.fileName.empty()) {
++        if (info.fileUrl.empty()) {
++            return async::make_promise<Ret>([](auto resolve) {
++                return resolve(make_ret(Err::NoUpdate));
++            });
++        }
++
++        return async::make_promise<Ret>([this, url = info.fileUrl](auto resolve) {
++            return resolve(platformInteractive()->openUrl(url));
++        });
++    }
++
+     io::path_t packagePath = service()->downloadedReleasePath();
+ 
+     if (packagePath.empty()) {
+@@ -340,6 +354,12 @@ void AppUpdateScenario::downloadUpdateInBackground()
+         return;
+     }
+ 
++    // A release without a platform package is still shown by the manual
++    // checker, but there is nothing safe to fetch or install in the background.
++    if (service()->lastCheckResult().val.fileName.empty()) {
++        return;
++    }
++
+     if (!configuration()->autoDownloadEnabled()) {
+         LOGI() << "background update download skipped: user has disabled";
+         return;
+diff --git a/framework/update/qml/Muse/Update/AppReleaseInfoDialog.qml b/framework/update/qml/Muse/Update/AppReleaseInfoDialog.qml
+--- a/framework/update/qml/Muse/Update/AppReleaseInfoDialog.qml
++++ b/framework/update/qml/Muse/Update/AppReleaseInfoDialog.qml
+@@ -33,6 +33,7 @@ StyledDialogView {
+     property string appName: ""
+     property string version: ""
+     property bool readyToInstall: false
++    property bool externalDownload: false
+     property alias notes: view.notes
+     property alias previousReleasesNotes: view.previousReleasesNotes
+ 
+@@ -156,6 +157,7 @@ StyledDialogView {
+ 
+             navigationPanel.section: root.navigationSection
+             navigationPanel.order: 1
++            externalDownload: root.externalDownload
+ 
+             onRemindLaterRequested: {
+                 root.ret = { errcode: 0, value: "remindLater" }
+diff --git a/framework/update/qml/Muse/Update/internal/AppReleaseInfoBottomPanel.qml b/framework/update/qml/Muse/Update/internal/AppReleaseInfoBottomPanel.qml
+--- a/framework/update/qml/Muse/Update/internal/AppReleaseInfoBottomPanel.qml
++++ b/framework/update/qml/Muse/Update/internal/AppReleaseInfoBottomPanel.qml
+@@ -29,6 +29,7 @@ RowLayout {
+     id: root
+ 
+     property string defaultButtonName: installButton.text
++    property bool externalDownload: false
+ 
+     property NavigationPanel navigationPanel: NavigationPanel {
+         name: "UpdateBottomPanel"
+@@ -86,7 +87,7 @@ RowLayout {
+ 
+         Layout.alignment: Qt.AlignVCenter
+ 
+-        text: qsTrc("update", "Update now")
++        text: root.externalDownload ? qsTrc("update", "View release") : qsTrc("update", "Update now")
+         icon: IconCode.IMPORT
+ 
+         accentButton: true
+diff --git a/framework/update/tests/appupdateservice_tests.cpp b/framework/update/tests/appupdateservice_tests.cpp
+--- a/framework/update/tests/appupdateservice_tests.cpp
++++ b/framework/update/tests/appupdateservice_tests.cpp
+@@ -386,6 +386,27 @@ TEST_F(AppUpdateServiceTests, ParseRelease_MacOS)
+     EXPECT_EQ(retVal.val.fileSize, 12345u);
+ }
+ 
++TEST_F(AppUpdateServiceTests, ParseRelease_GitHubSourceOnly)
++{
++    //! [GIVEN] A GitHub release with source archives but no installable asset
++    const QByteArray json = R"json({
++        "tag_name": "v0.2.0",
++        "html_url": "https://github.com/dulcedelechedev/millerscore/releases/tag/v0.2.0",
++        "body": "MillerScore 0.2.0 release notes",
++        "assets": []
++    })json";
++
++    //! [WHEN] The release is parsed
++    const RetVal<ReleaseInfo> result = m_service->parseRelease(json);
++
++    //! [THEN] It remains a valid version-check result which opens the release page
++    ASSERT_TRUE(result.ret);
++    EXPECT_EQ(result.val.version, "0.2.0");
++    EXPECT_TRUE(result.val.fileName.empty());
++    EXPECT_EQ(result.val.fileUrl, "https://github.com/dulcedelechedev/millerscore/releases/tag/v0.2.0");
++    EXPECT_EQ(result.val.notes, "MillerScore 0.2.0 release notes");
++}
++
+ TEST_F(AppUpdateServiceTests, CheckForUpdate_ReleasesNotes)
+ {
+     //! [GIVEN] Release info
+diff --git a/framework/update/tests/appupdatescenario_tests.cpp b/framework/update/tests/appupdatescenario_tests.cpp
+--- a/framework/update/tests/appupdatescenario_tests.cpp
++++ b/framework/update/tests/appupdatescenario_tests.cpp
+@@ -26,6 +26,7 @@
+ #include "global/tests/mocks/applicationmock.h"
+ #include "network/tests/mocks/networkinformationmock.h"
+ #include "interactive/tests/mocks/interactivemock.h"
++#include "interactive/tests/mocks/platforminteractivemock.h"
+ #include "multiwindows/tests/mocks/multiwindowsprovidermock.h"
+ #include "mocks/updateconfigurationmock.h"
+ #include "mocks/appupdateservicemock.h"
+@@ -65,6 +66,9 @@ public:
+         m_interactive = std::make_shared<NiceMock<InteractiveMock> >();
+         m_scenario->interactive.set(m_interactive);
+ 
++        m_platformInteractive = std::make_shared<NiceMock<PlatformInteractiveMock> >();
++        m_scenario->platformInteractive.set(m_platformInteractive);
++
+         ON_CALL(*m_interactive, buttonData(_))
+         .WillByDefault(Invoke([](IInteractive::Button btn) {
+             return IInteractive::ButtonData(btn, std::string());
+@@ -159,6 +163,7 @@ public:
+     std::shared_ptr<AppUpdateServiceMock> m_service;
+     std::shared_ptr<network::NetworkInformationMock> m_networkInformation;
+     std::shared_ptr<InteractiveMock> m_interactive;
++    std::shared_ptr<PlatformInteractiveMock> m_platformInteractive;
+     std::shared_ptr<mi::MultiWindowsProviderMock> m_multiwindowsProvider;
+     RetVal<ReleaseInfo> m_lastCheckResult;
+     Progress m_downloadProgress;
+@@ -308,6 +313,25 @@ TEST_F(AppUpdateScenarioTests, ManualDownload_NotEnoughDiskSpace_Cancel_Stops)
+     EXPECT_EQ(result.code(), static_cast<int>(Ret::Code::Cancel));
+ }
+ 
++TEST_F(AppUpdateScenarioTests, ManualSourceOnlyRelease_OpensOfficialReleasePage)
++{
++    //! [GIVEN] GitHub reports a newer release without an installable package
++    m_lastCheckResult.val.fileName.clear();
++    m_lastCheckResult.val.fileUrl = "https://github.com/dulcedelechedev/millerscore/releases/tag/v0.2.0";
++
++    //! [THEN] The official release page is opened and no download dialog appears
++    EXPECT_CALL(*m_platformInteractive,
++                openUrl(std::string("https://github.com/dulcedelechedev/millerscore/releases/tag/v0.2.0")))
++    .WillOnce(Return(muse::make_ok()));
++    EXPECT_CALL(*m_interactive, openSync(_)).Times(0);
++
++    Ret result;
++    downloadRelease().onResolve(m_scenario, [&result](const Ret& ret) { result = ret; });
++    pump();
++
++    EXPECT_TRUE(result);
++}
++
+ TEST_F(AppUpdateScenarioTests, ManualDownload_NotEnoughDiskSpace_Retry_ReopensDownload)
+ {
+     //! [GIVEN] The disk is still full on the second attempt

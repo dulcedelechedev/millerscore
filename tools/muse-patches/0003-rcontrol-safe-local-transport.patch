@@ -1,0 +1,21 @@
+diff --git a/framework/rcontrol/mcp/transport/tcptransport.cpp b/framework/rcontrol/mcp/transport/tcptransport.cpp
+index 08ef0b2f8..cb6c3c0ef 100644
+--- a/framework/rcontrol/mcp/transport/tcptransport.cpp
++++ b/framework/rcontrol/mcp/transport/tcptransport.cpp
+@@ -87,10 +87,15 @@ bool TcpTransport::start()
+ 
+             QTcpSocket* socket = m_server->nextPendingConnection();
+             m_connection = new TcpConnection(socket, m_onRequest);
++            // The connection deletes itself when the client disconnects;
++            // forget it so stop() never deletes a dangling pointer.
++            QObject::connect(m_connection, &QObject::destroyed, m_server, [this]() {
++                m_connection = nullptr;
++            });
+         });
+     }
+ 
+-    if (!m_server->listen(QHostAddress::Any, DEFAULT_PORT)) {
++    if (!m_server->listen(QHostAddress::LocalHost, DEFAULT_PORT)) {
+         return false;
+     }
+ 

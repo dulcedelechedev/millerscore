@@ -1,0 +1,93 @@
+diff --git a/framework/audio/engine/ifxprocessor.h b/framework/audio/engine/ifxprocessor.h
+--- a/framework/audio/engine/ifxprocessor.h
++++ b/framework/audio/engine/ifxprocessor.h
+@@ -43,6 +43,10 @@ public:
+     virtual bool active() const = 0;
+     virtual void setActive(bool active) = 0;
+ 
++    //! Applies a saved state (e.g. a plug-in's opaque state) to the running
++    //! instance. Processors without a configurable state ignore it.
++    virtual void setConfiguration(const AudioUnitConfig& configuration) { (void)configuration; }
++
+     virtual void setMode(const ProcessMode mode) = 0;
+ 
+     virtual bool shouldProcessDuringSilence() const = 0;
+diff --git a/framework/vst/internal/fx/vstfxprocessor.h b/framework/vst/internal/fx/vstfxprocessor.h
+--- a/framework/vst/internal/fx/vstfxprocessor.h
++++ b/framework/vst/internal/fx/vstfxprocessor.h
+@@ -49,6 +49,7 @@ public:
+ 
+     bool active() const override;
+     void setActive(bool active) override;
++    void setConfiguration(const muse::audio::AudioUnitConfig& configuration) override;
+ 
+     void setMode(const muse::audio::ProcessMode mode) override;
+ 
+diff --git a/framework/vst/internal/fx/vstfxprocessor.cpp b/framework/vst/internal/fx/vstfxprocessor.cpp
+--- a/framework/vst/internal/fx/vstfxprocessor.cpp
++++ b/framework/vst/internal/fx/vstfxprocessor.cpp
+@@ -110,6 +110,20 @@ void VstFxProcessor::setActive(bool active)
+     m_params.active = active;
+ }
+ 
++void VstFxProcessor::setConfiguration(const muse::audio::AudioUnitConfig& configuration)
++{
++    if (m_params.configuration == configuration) {
++        return;
++    }
++
++    m_params.configuration = configuration;
++
++    // Before loading completes, onPluginLoaded applies m_params.configuration.
++    if (m_inited) {
++        m_pluginPtr->updatePluginConfig(configuration);
++    }
++}
++
+ void VstFxProcessor::setMode(const muse::audio::ProcessMode mode)
+ {
+     m_vstAudioClient->setIsPlaying(muse::audio::isModePlaying(mode));
+diff --git a/framework/audio/engine/internal/fx/abstractfxresolver.cpp b/framework/audio/engine/internal/fx/abstractfxresolver.cpp
+--- a/framework/audio/engine/internal/fx/abstractfxresolver.cpp
++++ b/framework/audio/engine/internal/fx/abstractfxresolver.cpp
+@@ -92,6 +92,8 @@ void AbstractFxResolver::updateTrackFxMap(FxMap& fxMap, const audio::TrackId tra
+             fxMap.emplace(pair.first, std::move(fxPtr));
+         }
+     }
++
++    applyConfigurations(fxMap, newFxChain);
+ }
+ 
+ void AbstractFxResolver::updateMasterFxMap(const AudioFxChain& newFxChain, const OutputSpec& outputSpec)
+@@ -120,6 +122,20 @@ void AbstractFxResolver::updateMasterFxMap(const AudioFxChain& newFxChain, const
+             m_masterFxMap.emplace(pair.first, fx);
+         }
+     }
++
++    applyConfigurations(m_masterFxMap, newFxChain);
++}
++
++void AbstractFxResolver::applyConfigurations(const FxMap& fxMap, const AudioFxChain& newFxChain)
++{
++    // A kept slot (same resource) may carry another saved state, e.g. when a
++    // project's settings are applied again; the live instance must follow it.
++    for (const auto& pair : fxMap) {
++        auto newIt = newFxChain.find(pair.first);
++        if (newIt != newFxChain.cend() && pair.second->params().configuration != newIt->second.configuration) {
++            pair.second->setConfiguration(newIt->second.configuration);
++        }
++    }
+ }
+ 
+ void AbstractFxResolver::removeMasterFx(const AudioResourceId&, AudioFxChainOrder)
+diff --git a/framework/audio/engine/internal/fx/abstractfxresolver.h b/framework/audio/engine/internal/fx/abstractfxresolver.h
+--- a/framework/audio/engine/internal/fx/abstractfxresolver.h
++++ b/framework/audio/engine/internal/fx/abstractfxresolver.h
+@@ -49,6 +49,7 @@ private:
+ 
+     void updateMasterFxMap(const AudioFxChain& newFxChain, const OutputSpec& outputSpec);
+     void updateTrackFxMap(FxMap& fxMap, const TrackId trackId, const AudioFxChain& newFxChain, const audio::OutputSpec& outputSpec);
++    void applyConfigurations(const FxMap& fxMap, const AudioFxChain& newFxChain);
+ 
+     void fxChainToRemove(const AudioFxChain& currentFxChain, const AudioFxChain& newFxChain, AudioFxChain& resultChain);
+     void fxChainToCreate(const AudioFxChain& currentFxChain, const AudioFxChain& newFxChain, AudioFxChain& resultChain);

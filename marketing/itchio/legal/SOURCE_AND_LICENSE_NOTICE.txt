@@ -1,0 +1,24 @@
+MillerScore — source code and license notice
+Developed by DulceDeLecheDEV
+
+MillerScore is free software distributed under the GNU General Public License,
+version 3 (GPLv3). You may run, study, modify and redistribute the GPL-covered
+software under the terms of that license.
+
+This binary release corresponds to source version:
+
+    VERSION: v0.1.0
+    SOURCE:  https://github.com/dulcedelechedev/millerscore/releases/tag/v0.1.0
+
+Create the tag from the exact commit used to build the distributed binaries.
+The corresponding source must remain available at no additional charge.
+
+MillerScore is an independent community fork based on MuseScore Studio. It is
+not an official product and is not affiliated with or endorsed by Muse Group
+or the MuseScore project. MuseScore and related marks belong to their
+respective owners.
+
+See LICENSE.txt and THIRD-PARTY-LICENSES.txt in the distribution for complete
+terms and notices. Separately installed plug-ins, sample libraries, MuseHub and
+Muse Sounds are governed by their own licenses and are not automatically part
+of this distribution.

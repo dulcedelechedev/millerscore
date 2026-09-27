@@ -1,0 +1,11 @@
+MillerScore is free software licensed under GNU GPLv3. Your purchase supports
+the official build, testing, packaging, and continued development. It does not
+restrict your right to study, modify, or redistribute GPL-covered software.
+
+Developed by DulceDeLecheDEV.
+
+MillerScore is an independent community project based on MuseScore Studio. It
+is not affiliated with or endorsed by Muse Group or the MuseScore project.
+
+Corresponding source for this release:
+https://github.com/dulcedelechedev/millerscore/releases/tag/v0.1.0

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="260" viewBox="0 0 960 260">
+  <defs>
+    <linearGradient id="gold" x1="30" y1="20" x2="890" y2="240" gradientUnits="userSpaceOnUse"><stop stop-color="#FFF2A8"/><stop offset=".22" stop-color="#E7C660"/><stop offset=".52" stop-color="#B88624"/><stop offset=".79" stop-color="#F5DA7A"/><stop offset="1" stop-color="#8C6117"/></linearGradient>
+  </defs>
+  <rect width="260" height="260" rx="58" fill="#0E0D0A" stroke="#72531A" stroke-width="4"/>
+  <g opacity=".35" stroke="#D1A947" stroke-width="2"><path d="M28 96h204"/><path d="M28 116h204"/><path d="M28 136h204"/><path d="M28 156h204"/><path d="M28 176h204"/></g>
+  <path d="M52 202V70l37 2 41 74 41-74 37-2v132h-40v-59l-33 61h-10l-33-61v59H52Z" fill="none" stroke="url(#gold)" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M191 43l6 15 15 6-15 6-6 15-6-15-15-6 15-6 6-15Z" fill="#FFF2A8"/>
+  <text x="304" y="151" fill="url(#gold)" font-family="Georgia, 'Times New Roman', serif" font-size="104" font-weight="700">MillerScore</text>
+  <text x="313" y="198" fill="#A98A43" font-family="Segoe UI, sans-serif" font-size="18" letter-spacing="8">COMPOSE • PRODUCE • PERFORM</text>
+</svg>

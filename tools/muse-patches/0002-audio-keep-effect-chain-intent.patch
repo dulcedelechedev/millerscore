@@ -1,0 +1,174 @@
+diff --git a/framework/audio/engine/internal/fx/abstractfxresolver.cpp b/framework/audio/engine/internal/fx/abstractfxresolver.cpp
+index ef192d956..d1a1b7c41 100644
+--- a/framework/audio/engine/internal/fx/abstractfxresolver.cpp
++++ b/framework/audio/engine/internal/fx/abstractfxresolver.cpp
+@@ -30,24 +30,26 @@ using namespace muse::audio::fx;
+ std::vector<IFxProcessorPtr> AbstractFxResolver::resolveFxList(const TrackId trackId, const AudioFxChain& fxChain,
+                                                                const OutputSpec& outputSpec)
+ {
+-    if (fxChain.empty()) {
+-        LOGE() << "invalid fx chain for trackId: " << trackId;
++    // An empty chain is valid: it removes every effect this resolver still
++    // holds for the track, instead of keeping stale instances alive.
++    auto it = m_tracksFxMap.find(trackId);
++    if (fxChain.empty() && it == m_tracksFxMap.end()) {
+         return {};
+     }
+ 
+-    FxMap& fxMap = m_tracksFxMap[trackId];
++    FxMap& fxMap = it != m_tracksFxMap.end() ? it->second : m_tracksFxMap[trackId];
+     updateTrackFxMap(fxMap, trackId, fxChain, outputSpec);
+ 
++    if (fxMap.empty()) {
++        m_tracksFxMap.erase(trackId);
++        return {};
++    }
++
+     return muse::values(fxMap);
+ }
+ 
+ std::vector<IFxProcessorPtr> AbstractFxResolver::resolveMasterFxList(const AudioFxChain& fxChain, const OutputSpec& outputSpec)
+ {
+-    if (fxChain.empty()) {
+-        LOGE() << "invalid master fx params";
+-        return {};
+-    }
+-
+     updateMasterFxMap(fxChain, outputSpec);
+ 
+     return muse::values(m_masterFxMap);
+diff --git a/framework/audio/engine/internal/fx/fxresolver.cpp b/framework/audio/engine/internal/fx/fxresolver.cpp
+index 9e5ef2498..bb64fbc74 100644
+--- a/framework/audio/engine/internal/fx/fxresolver.cpp
++++ b/framework/audio/engine/internal/fx/fxresolver.cpp
+@@ -22,6 +22,8 @@
+ 
+ #include "fxresolver.h"
+ 
++#include <algorithm>
++
+ #include "audio/common/audiosanitizer.h"
+ 
+ #include "log.h"
+@@ -30,6 +32,17 @@ using namespace muse::async;
+ using namespace muse::audio;
+ using namespace muse::audio::fx;
+ 
++namespace {
++//! Resolvers are grouped by effect type; the processing order must still be
++//! the slot order chosen by the user, whatever mix of types the chain holds.
++void sortByChainOrder(std::vector<IFxProcessorPtr>& list)
++{
++    std::stable_sort(list.begin(), list.end(), [](const IFxProcessorPtr& left, const IFxProcessorPtr& right) {
++        return left->params().chainOrder < right->params().chainOrder;
++    });
++}
++}
++
+ std::vector<IFxProcessorPtr> FxResolver::resolveMasterFxList(const AudioFxChain& fxChain, const OutputSpec& outputSpec)
+ {
+     ONLY_AUDIO_ENGINE_THREAD;
+@@ -49,14 +62,12 @@ std::vector<IFxProcessorPtr> FxResolver::resolveMasterFxList(const AudioFxChain&
+             }
+         }
+ 
+-        if (fxChainByType.empty()) {
+-            continue;
+-        }
+-
+         std::vector<IFxProcessorPtr> fxList = resolver.second->resolveMasterFxList(std::move(fxChainByType), outputSpec);
+         result.insert(result.end(), fxList.begin(), fxList.end());
+     }
+ 
++    sortByChainOrder(result);
++
+     return result;
+ }
+ 
+@@ -79,14 +90,14 @@ std::vector<IFxProcessorPtr> FxResolver::resolveFxList(const TrackId trackId, co
+             }
+         }
+ 
+-        if (fxChainByType.empty()) {
+-            continue;
+-        }
+-
++        // Resolve even an empty per-type chain: it releases processors (and
++        // registered plug-in instances) that were removed from this track.
+         std::vector<IFxProcessorPtr> fxList = resolver.second->resolveFxList(trackId, std::move(fxChainByType), outputSpec);
+         result.insert(result.end(), fxList.begin(), fxList.end());
+     }
+ 
++    sortByChainOrder(result);
++
+     return result;
+ }
+ 
+diff --git a/framework/audio/engine/internal/nodes/fxchain.cpp b/framework/audio/engine/internal/nodes/fxchain.cpp
+index 6aefdc6c0..205529932 100644
+--- a/framework/audio/engine/internal/nodes/fxchain.cpp
++++ b/framework/audio/engine/internal/nodes/fxchain.cpp
+@@ -38,7 +38,14 @@ void FxChain::setFxList(const std::vector<IFxProcessorPtr>& fxList)
+         doAdd(node);
+ 
+         node->paramsChanged().onReceive(this, [this](const AudioFxParams& fxParams) {
+-            m_fxChainSpec.insert_or_assign(fxParams.chainOrder, fxParams);
++            // A processor reports its own state (e.g. a VST3 editor edit). The
++            // bypass flag is owned by the chain spec, never by that echo.
++            AudioFxParams newParams = fxParams;
++            auto current = m_fxChainSpec.find(fxParams.chainOrder);
++            if (current != m_fxChainSpec.end()) {
++                newParams.active = current->second.active;
++            }
++            m_fxChainSpec.insert_or_assign(fxParams.chainOrder, newParams);
+             m_fxChainSpecChanged.send(m_fxChainSpec);
+             updateShouldProcessDuringSilence();
+         }, async::Asyncable::Mode::SetReplace);
+@@ -80,7 +87,14 @@ void FxChain::setFxChainSpec(const AudioFxChain& fxChainSpec)
+     m_fxChainSpec = fxChainSpec;
+     for (auto it = m_fxChainSpec.begin(); it != m_fxChainSpec.end();) {
+         if (FxNodePtr fx = findFxNode(*it)) {
+-            fx->setBypassed(!it->second.active);
++            fx->setActive(it->second.active);
++            ++it;
++        } else if (it->second.isValid()) {
++            // The resource could not be resolved (plug-in missing or failed
++            // to load). Keep the user's slot, settings and opaque state in the
++            // spec so it is persisted unchanged and can be recovered later;
++            // it simply has no node and processes nothing.
++            LOGW() << name() << ": effect is unavailable and kept unprocessed: " << it->second.resourceMeta.id;
+             ++it;
+         } else {
+             it = m_fxChainSpec.erase(it);
+diff --git a/framework/audio/engine/internal/nodes/fxnode.cpp b/framework/audio/engine/internal/nodes/fxnode.cpp
+index 8d379d38d..91027289e 100644
+--- a/framework/audio/engine/internal/nodes/fxnode.cpp
++++ b/framework/audio/engine/internal/nodes/fxnode.cpp
+@@ -59,6 +59,12 @@ bool FxNode::shouldProcessDuringSilence() const
+     return m_fxProcessor->shouldProcessDuringSilence();
+ }
+ 
++void FxNode::setActive(bool active)
++{
++    m_fxProcessor->setActive(active);
++    setBypassed(!active);
++}
++
+ void FxNode::onOutputSpecChanged(const OutputSpec& spec)
+ {
+     m_fxProcessor->setOutputSpec(spec);
+diff --git a/framework/audio/engine/internal/nodes/fxnode.h b/framework/audio/engine/internal/nodes/fxnode.h
+index e3a1bd4a7..30e97f2ec 100644
+--- a/framework/audio/engine/internal/nodes/fxnode.h
++++ b/framework/audio/engine/internal/nodes/fxnode.h
+@@ -47,6 +47,10 @@ public:
+ 
+     bool shouldProcessDuringSilence() const;
+ 
++    //! Keeps the node's bypass and the processor's own `active` flag in step,
++    //! so parameters echoed by the processor never revert a user bypass.
++    void setActive(bool active);
++
+ protected:
+ 
+     void onModeChanged(const ProcessMode mode) override;

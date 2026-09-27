@@ -1,0 +1,293 @@
+diff --git a/framework/audio/driver/platform/win/asio/asioaudiodriver.cpp b/framework/audio/driver/platform/win/asio/asioaudiodriver.cpp
+index c1b2dd42c..3e47074de 100644
+--- a/framework/audio/driver/platform/win/asio/asioaudiodriver.cpp
++++ b/framework/audio/driver/platform/win/asio/asioaudiodriver.cpp
+@@ -23,17 +23,27 @@
+ 
+ #include "global/async/notification.h"
+ 
++// The SDK's iasiodrv.h declares a COM interface: <windows.h> must come first
++#include <windows.h>
++
+ #undef UNICODE
+ #include "common/asiosys.h"
+ #include "common/asio.h"
+ #include "common/iasiodrv.h"
+ #include "host/asiodrivers.h"
+ 
++#include <algorithm>
++#include <cstring>
++#include <mutex>
++
+ #include "log.h"
+ 
+ using namespace muse;
+ using namespace muse::audio;
+ 
++//! Inputs opened for recording: the interface's first channels, up to a stereo pair
++static constexpr long MAX_INPUT_CHANNELS = 2;
++
+ struct AsioData {
+     // Drivers list
+     //! NOTE COM initialization may be called in the constructor.
+@@ -68,6 +78,11 @@ struct AsioData {
+     // ASIOOutputReady()
+     bool postOutput = false;
+ 
++    // Inputs (recording): their buffers follow the outputs in bufferInfos/channelInfos
++    long activeInputChannels = 0;
++    std::mutex inputCallbackMutex;
++    IAudioDriver::InputCallback inputCallback;
++
+     // ASIOCallbacks
+     ASIOCallbacks callbacks;
+ 
+@@ -124,10 +139,93 @@ constexpr uint64_t swap64(uint64_t val)
+            | ((val & 0x00000000000000FFULL) << 56);
+ }
+ 
++//! One ASIO input sample as a float in [-1, 1]
++static float inputSampleToFloat(const void* buffer, size_t index, ASIOSampleType type)
++{
++    const uint8_t* bytes = static_cast<const uint8_t*>(buffer);
++    switch (type) {
++    case ASIOSTInt16LSB:
++        return static_cast<const int16_t*>(buffer)[index] / 32768.0f;
++    case ASIOSTInt16MSB:
++        return int16_t(swap16(static_cast<const uint16_t*>(buffer)[index])) / 32768.0f;
++    case ASIOSTInt24LSB: {
++        const uint8_t* p = bytes + index * 3;
++        const int32_t value = int32_t(uint32_t(p[0]) << 8 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 24) >> 8;
++        return value / 8388608.0f;
++    }
++    case ASIOSTInt24MSB: {
++        const uint8_t* p = bytes + index * 3;
++        const int32_t value = int32_t(uint32_t(p[2]) << 8 | uint32_t(p[1]) << 16 | uint32_t(p[0]) << 24) >> 8;
++        return value / 8388608.0f;
++    }
++    case ASIOSTInt32LSB:
++        return float(static_cast<const int32_t*>(buffer)[index] / 2147483648.0);
++    case ASIOSTInt32MSB:
++        return float(int32_t(swap32(static_cast<const uint32_t*>(buffer)[index])) / 2147483648.0);
++    case ASIOSTFloat32LSB:
++        return static_cast<const float*>(buffer)[index];
++    case ASIOSTFloat32MSB: {
++        const uint32_t raw = swap32(static_cast<const uint32_t*>(buffer)[index]);
++        float value;
++        std::memcpy(&value, &raw, sizeof(value));
++        return value;
++    }
++    case ASIOSTFloat64LSB:
++        return float(static_cast<const double*>(buffer)[index]);
++    case ASIOSTFloat64MSB: {
++        const uint64_t raw = swap64(static_cast<const uint64_t*>(buffer)[index]);
++        double value;
++        std::memcpy(&value, &raw, sizeof(value));
++        return float(value);
++    }
++    // 32-bit containers holding 16/18/20/24-bit data in their low bits
++    case ASIOSTInt32LSB16: return static_cast<const int32_t*>(buffer)[index] / 32768.0f;
++    case ASIOSTInt32LSB18: return static_cast<const int32_t*>(buffer)[index] / 131072.0f;
++    case ASIOSTInt32LSB20: return static_cast<const int32_t*>(buffer)[index] / 524288.0f;
++    case ASIOSTInt32LSB24: return static_cast<const int32_t*>(buffer)[index] / 8388608.0f;
++    case ASIOSTInt32MSB16: return int32_t(swap32(static_cast<const uint32_t*>(buffer)[index])) / 32768.0f;
++    case ASIOSTInt32MSB18: return int32_t(swap32(static_cast<const uint32_t*>(buffer)[index])) / 131072.0f;
++    case ASIOSTInt32MSB20: return int32_t(swap32(static_cast<const uint32_t*>(buffer)[index])) / 524288.0f;
++    case ASIOSTInt32MSB24: return int32_t(swap32(static_cast<const uint32_t*>(buffer)[index])) / 8388608.0f;
++    default:
++        return 0.0f;
++    }
++}
++
++//! Hands this cycle's input to the recording consumer (never blocks the audio thread)
++static void s_deliverInput(long index)
++{
++    const long inputs = s_adata.activeInputChannels;
++    if (inputs <= 0) {
++        return;
++    }
++    std::unique_lock<std::mutex> lock(s_adata.inputCallbackMutex, std::try_to_lock);
++    if (!lock.owns_lock() || !s_adata.inputCallback) {
++        return;
++    }
++
++    const IAudioDriver::Spec& active = s_adata.activeSpec;
++    const size_t frames = active.output.samplesPerChannel;
++    const long first = long(active.output.audioChannelCount); // inputs follow the outputs
++
++    static std::vector<float> input;
++    input.resize(frames * size_t(inputs));
++    for (long channel = 0; channel < inputs; ++channel) {
++        const void* buffer = s_adata.bufferInfos[first + channel].buffers[index];
++        const ASIOSampleType type = s_adata.channelInfos[first + channel].type;
++        for (size_t frame = 0; frame < frames; ++frame) {
++            input[frame * size_t(inputs) + size_t(channel)] = inputSampleToFloat(buffer, frame, type);
++        }
++    }
++    s_adata.inputCallback(input.data(), samples_t(frames), audioch_t(inputs), active.output.sampleRate);
++}
++
+ static void s_bufferSwitch(long index, ASIOBool /*processNow*/)
+ {
+     const IAudioDriver::Spec& active = s_adata.activeSpec;
+ 
++    s_deliverInput(index);
++
+     const size_t channels = active.output.audioChannelCount;
+     const size_t procSamplesTotal = active.output.audioChannelCount * active.output.samplesPerChannel;
+ 
+@@ -409,6 +507,17 @@ static ASIOError create_asio_buffers(long bufferSize, long outputChannels, long
+     return ASE_OK;
+ }
+ 
++void AsioAudioDriver::setInputCallback(InputCallback callback)
++{
++    std::lock_guard<std::mutex> lock(s_adata.inputCallbackMutex);
++    s_adata.inputCallback = callback;
++}
++
++audioch_t AsioAudioDriver::inputChannelCount() const
++{
++    return audioch_t(s_adata.activeInputChannels);
++}
++
+ AudioDeviceID AsioAudioDriver::defaultDevice() const
+ {
+     AudioDeviceList devices = availableOutputDevices();
+@@ -520,11 +629,19 @@ bool AsioAudioDriver::open(const Spec& spec, Spec* activeSpec)
+     s_adata.callbacks.sampleRateDidChange = &s_sampleRateChanged;
+     s_adata.callbacks.asioMessage = &s_asioMessages;
+ 
+-    ok = create_asio_buffers((long)active.samplesPerChannel, (long)active.audioChannelCount) == ASE_OK;
++    // Inputs too, for recording; a driver that refuses them still plays.
++    s_adata.activeInputChannels = std::min(s_adata.deviceMetrics.inputChannels, MAX_INPUT_CHANNELS);
++    ok = create_asio_buffers((long)active.samplesPerChannel, (long)active.audioChannelCount, s_adata.activeInputChannels) == ASE_OK;
++    if (!ok && s_adata.activeInputChannels > 0) {
++        LOGW() << "failed create asio buffers with " << s_adata.activeInputChannels << " inputs, retrying without inputs";
++        s_adata.activeInputChannels = 0;
++        ok = create_asio_buffers((long)active.samplesPerChannel, (long)active.audioChannelCount) == ASE_OK;
++    }
+     if (!ok) {
+         LOGE() << "failed create asio buffers, driver: " << name;
+         return ok;
+     }
++    LOGI() << "ASIO inputs open: " << s_adata.activeInputChannels << " of " << s_adata.deviceMetrics.inputChannels;
+ 
+     s_adata.resetRequest.onNotify(this, [this]() {
+         reset();
+@@ -572,6 +689,7 @@ void AsioAudioDriver::doClose()
+ 
+     ASIODisposeBuffers();
+ 
++    s_adata.activeInputChannels = 0;
+     delete[] s_adata.bufferInfos;
+     s_adata.bufferInfos = nullptr;
+     delete[] s_adata.channelInfos;
+diff --git a/framework/audio/driver/platform/win/asio/asioaudiodriver.h b/framework/audio/driver/platform/win/asio/asioaudiodriver.h
+index dace78623..881393318 100644
+--- a/framework/audio/driver/platform/win/asio/asioaudiodriver.h
++++ b/framework/audio/driver/platform/win/asio/asioaudiodriver.h
+@@ -53,6 +53,9 @@ public:
+     AudioDeviceList availableOutputDevices() const override;
+     async::Notification availableOutputDevicesChanged() const override;
+ 
++    void setInputCallback(InputCallback callback) override;
++    audioch_t inputChannelCount() const override;
++
+ private:
+ 
+     void reset();
+diff --git a/framework/audio/iaudiodriver.h b/framework/audio/iaudiodriver.h
+index b10d139c6..47d01746e 100644
+--- a/framework/audio/iaudiodriver.h
++++ b/framework/audio/iaudiodriver.h
+@@ -40,6 +40,9 @@ public:
+     virtual ~IAudioDriver() = default;
+ 
+     using Callback = std::function<void (uint8_t* stream, int len)>;
++    //! Captured input, called from the driver's audio thread on every cycle: interleaved float samples
++    using InputCallback = std::function<void (const float* interleaved, samples_t frames, audioch_t channels,
++                                              sample_rate_t sampleRate)>;
+ 
+     struct Spec
+     {
+@@ -68,6 +71,10 @@ public:
+     virtual std::vector<sample_rate_t> availableOutputDeviceSampleRates() const = 0;
+     virtual AudioDeviceList availableOutputDevices() const = 0;
+     virtual async::Notification availableOutputDevicesChanged() const = 0;
++
++    //! Input capture (recording); drivers without it keep these defaults
++    virtual void setInputCallback(InputCallback) {}
++    virtual audioch_t inputChannelCount() const { return 0; }
+ };
+ using IAudioDriverPtr = std::shared_ptr<IAudioDriver>;
+ }
+diff --git a/framework/audio/iaudiodrivercontroller.h b/framework/audio/iaudiodrivercontroller.h
+index d3d2f630e..d0ab8f5a0 100644
+--- a/framework/audio/iaudiodrivercontroller.h
++++ b/framework/audio/iaudiodrivercontroller.h
+@@ -62,5 +62,9 @@ public:
+     virtual std::vector<sample_rate_t> availableOutputDeviceSampleRates() const = 0;
+     virtual void changeSampleRate(sample_rate_t sampleRate) = 0;
+     virtual async::Notification outputDeviceSampleRateChanged() const = 0;
++
++    //! Input capture (recording) from the current driver; kept across driver changes
++    virtual void setInputCallback(IAudioDriver::InputCallback) {}
++    virtual audioch_t inputChannelCount() const { return 0; }
+ };
+ }
+diff --git a/framework/audio/main/internal/audiodrivercontroller.cpp b/framework/audio/main/internal/audiodrivercontroller.cpp
+index 64ed27412..70437f4a0 100644
+--- a/framework/audio/main/internal/audiodrivercontroller.cpp
++++ b/framework/audio/main/internal/audiodrivercontroller.cpp
+@@ -167,6 +167,19 @@ std::vector<std::string> AudioDriverController::availableAudioDrivers() const
+ #endif
+ }
+ 
++void AudioDriverController::setInputCallback(IAudioDriver::InputCallback callback)
++{
++    m_inputCallback = callback;
++    if (m_audioDriver) {
++        m_audioDriver->setInputCallback(m_inputCallback);
++    }
++}
++
++audioch_t AudioDriverController::inputChannelCount() const
++{
++    return m_audioDriver ? m_audioDriver->inputChannelCount() : 0;
++}
++
+ void AudioDriverController::setNewDriver(IAudioDriverPtr newDriver)
+ {
+     if (m_audioDriver) {
+@@ -178,6 +191,8 @@ void AudioDriverController::setNewDriver(IAudioDriverPtr newDriver)
+     m_audioDriver = newDriver;
+ 
+     if (m_audioDriver) {
++        m_audioDriver->setInputCallback(m_inputCallback);
++
+         // subscribe
+         m_audioDriver->availableOutputDevicesChanged().onNotify(this, [this]() {
+             async::Async::call(this, [this]() {
+diff --git a/framework/audio/main/internal/audiodrivercontroller.h b/framework/audio/main/internal/audiodrivercontroller.h
+index 7a6260858..6454eb07a 100644
+--- a/framework/audio/main/internal/audiodrivercontroller.h
++++ b/framework/audio/main/internal/audiodrivercontroller.h
+@@ -69,6 +69,9 @@ public:
+     void changeSampleRate(sample_rate_t sampleRate) override;
+     async::Notification outputDeviceSampleRateChanged() const override;
+ 
++    void setInputCallback(IAudioDriver::InputCallback callback) override;
++    audioch_t inputChannelCount() const override;
++
+     IAudioTaskSchedulerPtr getAudioTaskScheduler() const;
+ 
+ private:
+@@ -80,6 +83,7 @@ private:
+     void updateOutputSpec();
+ 
+     IAudioDriver::Callback m_callback;
++    IAudioDriver::InputCallback m_inputCallback;
+     IAudioTaskSchedulerPtr m_audioTaskScheduler;
+     IAudioDriverPtr m_audioDriver;
+     async::Notification m_currentAudioDriverChanged;

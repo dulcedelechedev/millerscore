@@ -1,0 +1,61 @@
+diff --git a/framework/audio/engine/internal/contextplayer.cpp b/framework/audio/engine/internal/contextplayer.cpp
+index 907d4ed06..6c09d6527 100644
+--- a/framework/audio/engine/internal/contextplayer.cpp
++++ b/framework/audio/engine/internal/contextplayer.cpp
+@@ -93,6 +93,12 @@ void ContextPlayer::forward(const TimePosition& delta)
+     m_timeChanged.send(m_currentPosition.time());
+ }
+ 
++void ContextPlayer::forwardOffline(const TimePosition& delta)
++{
++    // The render may use another sample rate than real-time playback.
++    m_currentPosition = TimePosition::fromTime(m_currentPosition.time() + delta.time(), delta.sampleRate());
++}
++
+ TimePosition ContextPlayer::proc_onTimeChanged(const TimePosition& delta)
+ {
+     ONLY_AUDIO_PROC_THREAD;
+diff --git a/framework/audio/engine/internal/contextplayer.h b/framework/audio/engine/internal/contextplayer.h
+index a7b55e108..e881eb5d0 100644
+--- a/framework/audio/engine/internal/contextplayer.h
++++ b/framework/audio/engine/internal/contextplayer.h
+@@ -62,6 +62,7 @@ public:
+ 
+     // IPlayhead interface
+     void forward(const TimePosition& delta) override;
++    void forwardOffline(const TimePosition& delta) override;
+     const TimePosition& currentPosition() const override;
+ 
+ private:
+diff --git a/framework/audio/engine/internal/nodes/playheadnode.cpp b/framework/audio/engine/internal/nodes/playheadnode.cpp
+index 6de26b8a0..225d8edcc 100644
+--- a/framework/audio/engine/internal/nodes/playheadnode.cpp
++++ b/framework/audio/engine/internal/nodes/playheadnode.cpp
+@@ -34,5 +34,10 @@ PlayheadNode::PlayheadNode(PlayheadPtr playhead)
+ 
+ void PlayheadNode::doSelfProcess(float*, samples_t samplesPerChannel)
+ {
+-    m_playhead->forward(TimePosition::fromSamples(samplesPerChannel, m_outputSpec.sampleRate));
++    const TimePosition delta = TimePosition::fromSamples(samplesPerChannel, m_outputSpec.sampleRate);
++    if (mode() == ProcessMode::PlayingOffline) {
++        m_playhead->forwardOffline(delta);
++    } else {
++        m_playhead->forward(delta);
++    }
+ }
+diff --git a/framework/audio/engine/iplayhead.h b/framework/audio/engine/iplayhead.h
+index 35a800942..69ea33c9f 100644
+--- a/framework/audio/engine/iplayhead.h
++++ b/framework/audio/engine/iplayhead.h
+@@ -39,6 +39,11 @@ class IPlayhead : public IPlayheadPosition
+ public:
+ 
+     virtual void forward(const TimePosition& delta) = 0;
++
++    //! Advances the position during an offline render (export): no loop,
++    //! count-in or end-of-playback handling and no position notifications,
++    //! so automation and tempo-synced effects follow the rendered audio.
++    virtual void forwardOffline(const TimePosition& delta) = 0;
+ };
+ 
+ using PlayheadPositionPtr = std::shared_ptr<IPlayheadPosition>;
