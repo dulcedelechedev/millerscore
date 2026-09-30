@@ -24,11 +24,13 @@ MillerScore is a Windows music notation and production workstation that keeps th
 
 The control lane exposes note velocity and the complete CC0–CC127 catalog. Safe controller lanes can be selected, edited, and saved; stateful or dangerous controller sequences remain protected.
 
-Generic CC0–CC127 data is not yet routed completely to every playback engine. Velocity, volume, pan, and pitch use established playback paths. Do not expect audible automation for every generic controller in this release.
+The current test build dispatches the 108 editable generic CC lanes during main playback with MS Basic/SoundFont; the 20 protected numbers are never sent. Native WAV-export checks with MS Basic measured CC7 (volume), CC10 (pan), CC11 (expression), and CC64 (sustain). Other safe controllers depend on the selected instrument and may have no audible effect.
+
+Earlier builds may preserve these lanes without this SoundFont playback route. Check the release notes for the ZIP you install. Generic lanes remain unsupported by Muse Sounds, VST3, external MIDI output, and MIDI-file lane export. These checks do not validate every CC or interactive editing workflow.
 
 ## Current limitations
 
-- Generic playback for every MIDI CC lane is still in development.
+- Generic CC playback is limited to MS Basic/SoundFont; instrument responses and interactive workflows need wider validation.
 - Recording input selection, monitoring, and latency compensation are incomplete.
 - Audio media is referenced externally instead of embedded in the project.
 - Full Read/Touch/Latch/Write automation workflows are not complete.
@@ -40,6 +42,10 @@ Generic CC0–CC127 data is not yet routed completely to every playback engine. 
 - 4 GB RAM; 8 GB recommended for larger projects and plug-ins
 - Approximately 2 GB free for the application, plus sound and plug-in storage
 - Compatible audio output; an ASIO driver is currently required for recording
+
+## User guides
+
+Read the [English user guide](docs/index.html) or [Brazilian Portuguese guide](docs/pt-BR/index.html) for installation, audio setup, linked editing, controller limits, troubleshooting, and privacy. The guides describe the current test build; check release notes when using an earlier download.
 
 ## Getting the source
 

@@ -3,10 +3,18 @@
 Status: implementation complete; unattended build and startup validation
 complete (2026-09-26). Attended interaction/audio validation remains pending.
 
-The selector is intentionally capability-aware. A property is editable only
-when MillerScore has an authoritative value, persistence, Undo/Redo, and an
-audible playback path. Unsupported entries remain visible and explicitly say
-why they are unavailable; they never create decorative data.
+The selector is capability-aware. Per-note properties require an authoritative
+value, persistence, Undo/Redo and the corresponding playback contract. Safe
+generic CC lanes can also be edited and saved when the selected backend cannot
+play them; the lane explains that limitation. SoundFont playback dispatches
+108 safe controllers, and the instrument decides which affect its sound. The
+20 protected controllers cannot be edited or emitted. Merely selecting or
+previewing a lane sends no generic CC event.
+
+Generic CC playback was updated on 2026-09-30. Native Release WAV exports with
+MS Basic verify CC7 volume, CC10 pan, CC11 expression and CC64 sustain. The
+new route does not add Muse Sounds, VST3, external MIDI or MIDI-file lane
+export support. The earlier per-note validation record below remains historical.
 
 | Property | Status | Authoritative state and playback path |
 | --- | --- | --- |
@@ -19,6 +27,7 @@ why they are unavailable; they never create decorative data.
 | Channel panning | Available | Instrument-scoped `AutomationType::Pan`, stored in `automation.json`, evaluated by the audio control node. Range: -1..+1. |
 | Channel volume | Available | Instrument-scoped `AutomationType::Volume`, stored in `automation.json`, evaluated by the audio control node. Range: -60..+12 dB. |
 | Channel pitch | Available | Instrument-scoped `AutomationType::Pitch`, stored in `automation.json`, rendered into continuous note pitch curves. Range: -200..+200 cents. |
+| Generic MIDI CC | 108 editable; SoundFont main playback | Instrument-scoped `AutomationType::MidiLane` and `cc:N` in `automation.json`; raw 0–127 values. Response depends on the instrument. The other 20 numbers are protected. |
 
 ## Interaction contract
 
@@ -31,8 +40,8 @@ why they are unavailable; they never create decorative data.
 - Note changes use the performance overlay's official Undo command. Channel
   changes use `INotationAutomation::editPoints`, including batch reset.
 - Reset removes only the selected note property or the selected channel curve.
-- Pitch-automation edits reload rendered playback events so edits, Undo and Redo
-  are audible without reopening the project.
+- Pitch and generic CC edits update rendered playback events so edits, Undo
+  and Redo reach their supported playback paths without reopening the project.
 
 ## External behavior references
 

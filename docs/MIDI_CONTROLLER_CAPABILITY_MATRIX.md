@@ -1,6 +1,6 @@
 # MIDI controller capability matrix
 
-Status date: 2026-09-26. “Preserve” means the new project model can retain the
+Status date: 2026-09-30. The generic SoundFont CC route is updated below; unrelated backend capabilities retain their earlier scope. “Preserve” means the new project model can retain the
 lane; it does not imply audible playback. Capabilities below describe the real
 current adapters, not what the underlying SDK could theoretically do.
 
@@ -25,34 +25,39 @@ APIs and adapters.
 | --- | --- | --- | --- | --- | --- |
 | Note-on velocity | Yes, EID overlay | Yes | Yes | No in main note API | Notes only through FluidSynth path |
 | Release velocity | Stable ID only | No route | No route | No API | No authoritative model |
-| CC0–127 generic | Yes, `cc:N` | Underlying API yes; lane route pending | Only queried mappings; generic route pending | No main-stream generic CC | Low-level output can send MIDI1, route pending |
-| CC1 Modulation | Yes | Yes via narrow MPE event | Mapping is now queried; generic lane route pending | Audition only | Via FluidSynth path |
-| CC7/10/11 | Yes; existing Volume/Pan separate | CC11 generated for dynamics; generic route pending | Mapping-dependent | Dynamics uses dedicated API | Via FluidSynth path |
-| CC64 Sustain | Yes | Yes | Mapping-dependent | Dedicated pedal API | Via FluidSynth path |
-| CC66 Sostenuto | Yes | Yes | Mapping-dependent | No documented lane API | Via FluidSynth path |
-| CC120–127 | Yes as risky discrete IDs | Handler can receive CC; no safe lane route | Mapping-dependent, unqueried | No | Must require explicit action |
+| CC0–127 generic | Yes, `cc:N`; 108 editable, 20 protected | 108 safe CCs dispatched during main playback; instrument may ignore them | Generic lanes not dispatched | Generic lanes not dispatched | Generic lanes not forwarded |
+| CC1 Modulation | Yes | Safe generic lane plus existing narrow MPE event | Generic lane unavailable; existing mapping is queried | Existing audition path only; generic lane unavailable | Existing narrow events only; generic lane not forwarded |
+| CC7/10/11 | Yes; existing Volume/Pan separate | Generic volume/pan/expression verified with MS Basic; a CC11 lane overrides notation expression on its channels | Generic lanes unavailable | Dynamics uses dedicated API; generic lanes unavailable | Generic lanes not forwarded |
+| CC64 Sustain | Yes | Generic sustain verified with MS Basic; lane overrides notation pedal on its channels | Generic lane unavailable; existing pedal mapping unchanged | Dedicated notation pedal API; generic lane unavailable | Existing notation events only; generic lane not forwarded |
+| CC66 Sostenuto | Yes | Generic lane dispatched; overrides notation sostenuto on its channels; sound response depends on instrument | Generic lane unavailable | No documented generic lane API | Existing notation events only; generic lane not forwarded |
+| CC120–127 | Existing data preserved; editing protected | Never emitted from generic lanes | Generic lanes not dispatched | Generic lanes not dispatched | Never forwarded from generic lanes |
 | Pitch Bend 14-bit | Yes, `pitchBend` | Yes, but adapter assumes ±24 semitones | Mapping-dependent | Real per-note pitch path, not channel bend | MIDI1 down-conversion available |
 | Channel Pressure | Yes, stable ID | Handler now calls FluidSynth API; shared route pending | Mapping-dependent, unqueried | No | Low-level model supports it |
 | Poly Pressure | Stable ID (`polyPressure:*`) | Handler now calls key-pressure API; shared route pending | Event type exists in VST3, adapter missing | No | Low-level model supports it |
 | Program + Bank | Stable IDs | Underlying APIs yes; route pending | Program parameter model, route pending | Resource selection is authoritative | 14-bit storage and CC0/CC32 down-conversion fixed and tested |
-| RPN/NRPN | Stable semantic IDs | Generic CC route pending | Mapping-dependent | No | Legacy merge truncates IDs; unsafe currently |
-| 14-bit CC pairs | Catalog pairs MSB/LSB | Generic route pending | Plugin mapping-dependent | No | Preserve/order route pending |
+| RPN/NRPN | Stable semantic IDs; related CC editing protected | Ordered stateful sequences deliberately blocked in generic lanes | Generic lanes unavailable | No generic lane API | No generic lane forwarding |
+| 14-bit CC pairs | Catalog pairs MSB/LSB; separate 7-bit curves | Safe bytes dispatched separately; no grouped or atomic 14-bit guarantee | Generic lanes unavailable | No generic lane API | Generic lanes not forwarded |
 | Per-note pitch | EID pitch offset | Nominal pitch only; channel bend leaks | No Note Expression contract in adapter | Yes, real event-id pitch | MIDI2 conversion route absent |
 | Per-note pressure/slide | Stable IDs only | No safe isolation | No Note Expression contract in adapter | No loaded API | MIDI2 low-level model only |
 | Per-note pan/cutoff/resonance | Stable IDs only | No safe isolation | No Note Expression contract in adapter | No loaded API | Not claimed |
 
 ## UI capability rule
 
-Every production lane descriptor must eventually report: editable, playable,
-recordable, importable, exportable, effective resolution, channel/per-note
-scope, preview support and a localized unavailable reason. Until that contract
-is connected, a preserved generic MIDI lane must be shown as unavailable for
-playback rather than silently advertised as working.
+The generic lane selector distinguishes safe editing and persistence from
+backend dispatch. SoundFont lanes explain that the selected instrument may
+ignore a controller; Muse Sounds, VST3 and unresolved backends show an explicit
+unavailable or unconfirmed reason. Merely selecting a lane sends no generic
+controller event. Generic audition/preview, external MIDI forwarding and
+MIDI-file lane export are unavailable.
+
+The fuller lane contract must still report record/import/export capabilities,
+effective resolution, channel/per-note scope and preview support separately.
+Do not infer these capabilities from an editable or dispatched curve.
 
 ## Catalog rules
 
 - CC0–31 are MSB entries paired with CC32–63 LSB entries.
-- Values remain 0–127 per byte; combined values remain 0–16383.
+- Values remain 0–127 per byte. A theoretical combined pair spans 0–16383, but generic lane playback sends separate safe bytes and does not promise atomic 14-bit behavior.
 - CC64–69 are switches; CC96/97 are triggers; CC98–101 are parameter-state
   messages; CC120–127 are discrete channel-mode messages.
 - Undefined controls retain numeric identity and are never assigned invented

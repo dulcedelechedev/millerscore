@@ -75,7 +75,7 @@ Classification: **REUSE** sound discovery, loading, presets, MPE interpretation,
 
 `muse/framework/audio/engine/internal/synthesizers/fluidsynth/fluidresolver.*` registers and resolves FluidSynth resources. `soundfontrepository.*`, `fluidsoundfontparser.*`, and `muse/framework/audio/main/generalsoundfontinstallscenario.*` cover discovery, metadata, and installation. `fluidsynth.*` owns the synth and program setup; `fluidsequencer.*` maps MPE events to MIDI/channel events using `soundmapping.h`.
 
-Classification: **REUSE** for the vertical slice. Persist the resource identity plus program/preset/configuration already represented by `AudioInputParams`; do not serialize a second SoundFont choice in DAW data. General MIDI controller coverage can be **EXTEND**ed through the existing sequencer after each lane has an explicit mapping and round-trip test.
+Classification: **REUSE** for the vertical slice. Persist the resource identity plus program/preset/configuration already represented by `AudioInputParams`; do not serialize a second SoundFont choice in DAW data. The existing sequencer now dispatches 108 safe generic channel CCs from persisted lanes during SoundFont playback. MS Basic native WAV tests verify volume, pan, expression and sustain; other controller responses depend on the instrument. Stateful/protected commands, generic audition, external MIDI forwarding and generic lane MIDI-file export remain unavailable.
 
 ### VST3 and Kontakt
 
@@ -254,7 +254,7 @@ Classification: docking, existing transport, and score selection infrastructure 
 4. Build the docked Performance panel with shared ruler, playhead, selection, and velocity editing.
 5. Persist overrides in the linked-performance schema and instrument assignment in existing project audio settings.
 6. Validate project close/reopen with MuseSampler and FluidSynth; validate a generic VST3 with state restoration and missing-plug-in recovery.
-7. Defer audio recording, new plug-in hosting, generic automation, multi-output routing, and latency compensation.
+7. Keep new plug-in hosting, plug-in parameter automation, multi-output routing and latency compensation outside this slice. Generic channel CC playback is implemented for SoundFont; the recording workflow retains its documented limits.
 
 ## Acceptance boundaries
 

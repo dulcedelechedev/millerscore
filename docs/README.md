@@ -1,11 +1,21 @@
 
+# MillerScore documentation
+
+Open [index.html](index.html) in a browser for the English MillerScore v0.1.x user guide, or [pt-BR/index.html](pt-BR/index.html) for the Brazilian Portuguese translation. It covers installation and updates, audio setup, linked notation/DAW editing, controller safety and playback limits, sound sources, audio import/recording, recovery, troubleshooting, privacy, and licensing.
+
+Each language is a standalone HTML file with embedded CSS. The language links work in both the repository documentation and the packaged `guide/` folder. Keep the English and Brazilian Portuguese guides synchronized, including controller support and Early Access limitations. Interface labels and controller names remain available in English for reference. The guides need no build step, JavaScript, remote fonts, or CDN. Preserve their semantic headings, keyboard-accessible navigation, responsive layouts, and clearly stated Early Access limitations when editing. Controller-reference names and defaults follow `src/engraving/automation/midicontrollercatalog.h`; update the table if that catalog changes. Add genuine product screenshots only after the pictured workflow is verified and the image has been checked for private information.
+
+The API documentation workflow below is retained from upstream MuseScore. Its generated snapshots are separate from MillerScore's user guide.
+
+## Upstream API documentation
+
 We use the [jsdoc](https://github.com/jsdoc/jsdoc) tool to create API documentation.  
   
 What does the documentation consist of:
 * Static documentation - here is a tutorial and description of classes
 * Description of API methods - located in the API implementation files. 
 * Snapshots - here is the generated documentation for each version.
-* index.html - this is the entry point for https://musescore.github.io 
+* The upstream site's index.html - the entry point for https://musescore.github.io. MillerScore's local `docs/index.html` is its standalone user guide.
 * Tools for generation - here you will find a documentation extractor for API methods, a documentation generator (jsdoc) and automation scripts.
 * Generation and update process - see description below  
 
@@ -23,7 +33,7 @@ This is where static documentation is stored in the jsdoc format.
 Descriptions of API methods are located in `.cpp,.h` files where the implementation of the methods is located.   
 The description is in `jsdoc` format (see [https://jsdoc.app](https://jsdoc.app)), but the first line should indicate that this is APIDOC documentation.  
 
-#### Namesapces 
+#### Namespaces
 Like `api.log.`, `api.interactive.`...
 
 ```
@@ -99,11 +109,11 @@ location: [snapshots](https://github.com/musescore/musescore.github.io/tree/main
 
 To be able to view the documentation for each version, we generate snapshots of the documentation for each version and place them in the appropriate folder, for example: snapshots/4.5, snapshots/4.6
 
-### index.html 
+### Upstream site index.html
 
 location: [index.html](https://github.com/musescore/musescore.github.io/blob/main/index.html) - this is the entry point for https://musescore.github.io  
 
-After generating a snapshot for a new version, we need to add a link to it in this `index.html`, like others. 
+After generating an upstream API snapshot for a new version, add its link to that separate site's `index.html`. Do not replace MillerScore's user guide with an API snapshot index.
 
 ### Tools for generation   
   
