@@ -3,6 +3,8 @@
 
 Open [index.html](index.html) in a browser for the English MillerScore v0.1.x user guide, or [pt-BR/index.html](pt-BR/index.html) for the Brazilian Portuguese translation. It covers installation and updates, audio setup, linked notation/DAW editing, controller safety and playback limits, sound sources, audio import/recording, recovery, troubleshooting, privacy, and licensing.
 
+See the real application screenshot galleries in [English](SCREENSHOTS.md) or [Brazilian Portuguese](pt-BR/CAPTURAS.md).
+
 Each language is a standalone HTML file with embedded CSS. The language links work in both the repository documentation and the packaged `guide/` folder. Keep the English and Brazilian Portuguese guides synchronized, including controller support and Early Access limitations. Interface labels and controller names remain available in English for reference. The guides need no build step, JavaScript, remote fonts, or CDN. Preserve their semantic headings, keyboard-accessible navigation, responsive layouts, and clearly stated Early Access limitations when editing. Controller-reference names and defaults follow `src/engraving/automation/midicontrollercatalog.h`; update the table if that catalog changes. Add genuine product screenshots only after the pictured workflow is verified and the image has been checked for private information.
 
 The API documentation workflow below is retained from upstream MuseScore. Its generated snapshots are separate from MillerScore's user guide.
