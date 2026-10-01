@@ -1,0 +1,63 @@
+diff --git a/framework/audio/main/isoundfontinstallscenario.h b/framework/audio/main/isoundfontinstallscenario.h
+index bb4477a7e..55a9ec051 100644
+--- a/framework/audio/main/isoundfontinstallscenario.h
++++ b/framework/audio/main/isoundfontinstallscenario.h
+@@ -23,6 +23,7 @@
+  #pragma once
+ 
+  #include "global/modularity/imoduleinterface.h"
++ #include "global/async/notification.h"
+ 
+  #include "audio/common/soundfonttypes.h"
+ 
+@@ -35,5 +36,8 @@ public:
+     virtual ~ISoundFontInstallScenario() = default;
+ 
+     virtual void installSoundFont(const synth::SoundFontUri& uri) = 0;
++
++    //! Notified after a SoundFont was copied and added to the controller.
++    virtual async::Notification soundFontInstalled() const = 0;
+ };
+ }
+diff --git a/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp b/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp
+index 887af6c4f..4af37f54c 100644
+--- a/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp
++++ b/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp
+@@ -87,6 +87,11 @@ void GeneralSoundFontInstallScenario::installSoundFont(const synth::SoundFontUri
+     });
+ }
+ 
++async::Notification GeneralSoundFontInstallScenario::soundFontInstalled() const
++{
++    return m_soundFontInstalled;
++}
++
+ RetVal<io::path_t> GeneralSoundFontInstallScenario::resolveInstallationPath(const io::path_t& path) const
+ {
+     io::paths_t dirs = configuration()->userSoundFontDirectories();
+@@ -108,6 +113,7 @@ Ret GeneralSoundFontInstallScenario::doAddSoundFont(const io::path_t& src, const
+     if (ret) {
+         synth::SoundFontUri uri = synth::SoundFontUri::fromLocalFile(dst);
+         soundFontController()->addSoundFont(uri);
++        m_soundFontInstalled.notify();
+     }
+ 
+     return ret;
+diff --git a/framework/audio/main/platform/general/generalsoundfontinstallscenario.h b/framework/audio/main/platform/general/generalsoundfontinstallscenario.h
+index 1f87ae5c2..3c3e452c4 100644
+--- a/framework/audio/main/platform/general/generalsoundfontinstallscenario.h
++++ b/framework/audio/main/platform/general/generalsoundfontinstallscenario.h
+@@ -45,10 +45,13 @@ public:
+         : muse::Contextable(iocCtx) {}
+ 
+     void installSoundFont(const synth::SoundFontUri& uri) override;
++    async::Notification soundFontInstalled() const override;
+ 
+ private:
+ 
+     RetVal<io::path_t> resolveInstallationPath(const io::path_t& path) const;
+     Ret doAddSoundFont(const io::path_t& src, const io::path_t& dst);
++
++    async::Notification m_soundFontInstalled;
+ };
+ }

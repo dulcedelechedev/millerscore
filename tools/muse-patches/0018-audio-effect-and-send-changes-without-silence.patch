@@ -1,0 +1,27 @@
+diff --git a/framework/audio/engine/internal/enginerpccontroller.cpp b/framework/audio/engine/internal/enginerpccontroller.cpp
+--- a/framework/audio/engine/internal/enginerpccontroller.cpp
++++ b/framework/audio/engine/internal/enginerpccontroller.cpp
+@@ -435,7 +435,11 @@ void EngineRpcController::init()
+             }
+         });
+ 
+-        onLongRequest(ctxId, MsgCode::SetFxChainParams, [this](const Msg& msg) {
++        //! NOTE Quick, not Long: rebuilding a track's effect chain only relinks nodes: kept slots reuse their
++        // processors (state and reverb tails survive) and a new VST3 instance loads asynchronously on the
++        // main thread. A LongOperation outputs silence while it runs, which made every insert or bypass
++        // change audible as a gap.
++        onQuickRequest(ctxId, MsgCode::SetFxChainParams, [this](const Msg& msg) {
+             ONLY_AUDIO_RPC_THREAD;
+             TrackId trackId = 0;
+             AudioFxChain params;
+@@ -451,7 +455,9 @@ void EngineRpcController::init()
+             }
+         });
+ 
+-        onLongRequest(ctxId, MsgCode::SetAuxSendsParams, [this](const Msg& msg) {
++        //! NOTE Quick, not Long: a send change only updates the mixer's send table. A LongOperation outputs
++        // silence while it runs, which made every send-knob step audible as a gap.
++        onQuickRequest(ctxId, MsgCode::SetAuxSendsParams, [this](const Msg& msg) {
+             ONLY_AUDIO_RPC_THREAD;
+             TrackId trackId = 0;
+             AuxSendsParams params;

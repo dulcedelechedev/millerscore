@@ -1,0 +1,36 @@
+diff --git a/framework/rcontrol/mcp/transport/tcptransport.cpp b/framework/rcontrol/mcp/transport/tcptransport.cpp
+index cb6c3c0ef..ba573c941 100644
+--- a/framework/rcontrol/mcp/transport/tcptransport.cpp
++++ b/framework/rcontrol/mcp/transport/tcptransport.cpp
+@@ -28,6 +28,15 @@
+ 
+ static const int DEFAULT_PORT = 2212;
+ 
++//! NOTE Several instances running at once (e.g. automated sessions) each need their own port,
++//! or a client meant for one of them reaches another: MUSE_MCP_PORT sets it
++static int listenPort()
++{
++    bool ok = false;
++    const int port = qEnvironmentVariableIntValue("MUSE_MCP_PORT", &ok);
++    return ok && port > 0 && port < 65536 ? port : DEFAULT_PORT;
++}
++
+ using namespace muse::rcontrol::mcp;
+ 
+ TcpConnection::TcpConnection(QTcpSocket* socket, const ITransport::RequestHandler& onRequest, QObject* parent)
+@@ -95,11 +104,13 @@ bool TcpTransport::start()
+         });
+     }
+ 
+-    if (!m_server->listen(QHostAddress::LocalHost, DEFAULT_PORT)) {
++    const int port = listenPort();
++    if (!m_server->listen(QHostAddress::LocalHost, port)) {
++        LOGE() << "TcpTransport could not listen on port " << port << ": " << m_server->errorString();
+         return false;
+     }
+ 
+-    LOGI() << "TcpTransport started on port " << DEFAULT_PORT;
++    LOGI() << "TcpTransport started on port " << port;
+ 
+     return true;
+ }

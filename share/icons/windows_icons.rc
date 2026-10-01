@@ -1,0 +1,7 @@
+IDI_ICON1   ICON  DISCARDABLE "AppIcon\\MS4_AppIcon.ico"
+IDI_ICON2   ICON  DISCARDABLE "MsczIcon\\MS4_MsczIcon.ico"
+IDI_ICON3   ICON  DISCARDABLE "MscxIcon\\MS4_MscxIcon.ico"
+
+// the intro (src/appshell/widgets/splashscreen/introvignette.cpp); made by buildscripts/tools/intro_vignette
+MS_INTRO_FRAMES RCDATA "..\\intro\\vignette.frames"
+MS_INTRO_JINGLE RCDATA "..\\intro\\jingle.wav"

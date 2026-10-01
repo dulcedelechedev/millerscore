@@ -1,0 +1,16 @@
+diff --git a/framework/ui/internal/guiapplication.cpp b/framework/ui/internal/guiapplication.cpp
+index c5cbb7945..652f6c30b 100644
+--- a/framework/ui/internal/guiapplication.cpp
++++ b/framework/ui/internal/guiapplication.cpp
+@@ -124,6 +124,11 @@ void GuiApplication::startupScenario(const muse::modularity::ContextPtr& ctxId)
+             QMetaObject::invokeMethod(qApp, [this, ctxId]() {
+                 doStartupScenario(ctxId);
+             }, Qt::QueuedConnection);
++        } else if (m_windows.empty()) {
++            // A failed first window must not leave an invisible application running.
++            QCoreApplication::exit(EXIT_FAILURE);
++        } else {
++            destroyContext(ctxId);
+         }
+     }, Qt::QueuedConnection);
+ }

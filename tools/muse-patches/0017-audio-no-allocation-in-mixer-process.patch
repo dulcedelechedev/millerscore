@@ -1,0 +1,52 @@
+diff --git a/framework/audio/engine/internal/mixer.cpp b/framework/audio/engine/internal/mixer.cpp
+--- a/framework/audio/engine/internal/mixer.cpp
++++ b/framework/audio/engine/internal/mixer.cpp
+@@ -117,12 +117,23 @@ void Mixer::setAuxSends(const TrackId trackId, const AuxSendsParams& auxSends)
+ void Mixer::onOutputSpecChanged(const OutputSpec& spec)
+ {
+     ONLY_AUDIO_ENGINE_THREAD;
++
++    //! NOTE Size the buffers here (a spec change runs as a LongOperation), not in
++    // process(): allocating on the audio thread can make it miss its deadline.
++    const size_t outBufferSize = spec.samplesPerChannel * spec.audioChannelCount;
++
+     for (auto& t : m_tracks) {
+         t.chain->setOutputSpec(spec);
++        if (t.buffer.size() < outBufferSize) {
++            t.buffer.resize(outBufferSize);
++        }
+     }
+ 
+     for (auto& t : m_auxTracks) {
+         t.chain->setOutputSpec(spec);
++        if (t.buffer.size() < outBufferSize) {
++            t.buffer.resize(outBufferSize);
++        }
+     }
+ }
+ 
+@@ -165,7 +176,12 @@ void Mixer::process(float* outBuffer, samples_t samplesPerChannel)
+         }
+ 
+         mixOutputFromChannel(outBuffer, t.buffer.data(), outBufferSize);
+-        writeTrackToAuxBuffers(t.buffer.data(), outBufferSize, m_auxSends[t.trackId]);
++
++        // find(), not operator[]: inserting a missing entry would allocate on the audio thread
++        auto sends = m_auxSends.find(t.trackId);
++        if (sends != m_auxSends.end()) {
++            writeTrackToAuxBuffers(t.buffer.data(), outBufferSize, sends->second);
++        }
+     }
+ 
+     processAuxChannels(outBuffer, samplesPerChannel);
+@@ -275,7 +291,9 @@ void Mixer::prepareAuxBuffers(size_t outBufferSize)
+         if (!aux.chain->fxChain()) {
+             continue;
+         }
+-        aux.buffer.resize(outBufferSize);
++        if (aux.buffer.size() < outBufferSize) {
++            aux.buffer.resize(outBufferSize); // only if a block exceeds the output spec
++        }
+         std::fill(aux.buffer.begin(), aux.buffer.begin() + outBufferSize, 0.f);
+     }
+ }

@@ -1,0 +1,885 @@
+diff --git a/framework/musesampler/CMakeLists.txt b/framework/musesampler/CMakeLists.txt
+index 5c3bc4a30..5844ab303 100644
+--- a/framework/musesampler/CMakeLists.txt
++++ b/framework/musesampler/CMakeLists.txt
+@@ -48,3 +48,7 @@ target_sources(muse_musesampler PRIVATE
+     internal/musesamplercommandsstate.cpp
+     internal/musesamplercommandsstate.h
+ )
++
++if (MUSE_MODULE_MUSESAMPLER_TESTS)
++    add_subdirectory(tests)
++endif()
+diff --git a/framework/musesampler/internal/libhandler.h b/framework/musesampler/internal/libhandler.h
+index d1237ee49..a9260e90f 100644
+--- a/framework/musesampler/internal/libhandler.h
++++ b/framework/musesampler/internal/libhandler.h
+@@ -24,6 +24,7 @@
+ 
+ #include <memory>
+ #include <cstring>
++#include <functional>
+ 
+ #include "dlib.h"
+ #include "apitypes.h"
+@@ -34,24 +35,55 @@ namespace muse::musesampler {
+ struct MuseSamplerLibHandler
+ {
+ public:
++    struct LibraryLoader {
++        MuseSamplerLib (*load)(const io::path_t&) = muse::loadLib;
++        void* (*resolve)(MuseSamplerLib, const char*) = muse::getLibFunc;
++        void (*close)(MuseSamplerLib) = muse::closeLib;
++    };
++
+     MuseSamplerLibHandler() = default;
++    explicit MuseSamplerLibHandler(const LibraryLoader& loader)
++        : m_loader(loader)
++    {
++    }
++
++    ~MuseSamplerLibHandler()
++    {
++        deinit();
++    }
++
++    MuseSamplerLibHandler(const MuseSamplerLibHandler&) = delete;
++    MuseSamplerLibHandler& operator=(const MuseSamplerLibHandler&) = delete;
+ 
+     bool loadLib(const io::path_t& path)
+     {
+-        m_lib = muse::loadLib(path);
++        if (m_lib) {
++            return false;
++        }
++
++        m_apiLoaded = false;
++        m_version = Version();
++        m_buildNumber = -1;
++        m_lib = m_loader.load(path);
+         return m_lib != nullptr;
+     }
+ 
+     bool loadApi(const Version& minSupportedVersion, bool useLegacyAudition = false)
+     {
++        if (m_initialized) {
++            return false;
++        }
++
+         IF_ASSERT_FAILED(m_lib) {
+             return false;
+         }
+ 
++        m_apiLoaded = false;
++
+         auto getVersionMajor = (ms_get_version_major)libFunc("ms_get_version_major");
+         auto getVersionMinor = (ms_get_version_minor)libFunc("ms_get_version_minor");
+         auto getVersionRevision = (ms_get_version_revision)libFunc("ms_get_version_revision");
+-        auto getBuildNumber = (ms_get_version_build_number)libFunc("ms_get_version_build_number");
++        auto getBuildNumber = (ms_get_version_build_number)libFunc("ms_get_version_build_number", false);
+ 
+         // Invalid...
+         if (!getVersionMajor || !getVersionMinor || !getVersionRevision) {
+@@ -65,7 +97,7 @@ public:
+         }
+ 
+         if (m_version < minSupportedVersion) {
+-            LOGE() << "MuseSampler " << m_version.toString() << " is not supported (too old -- update MuseSampler); ignoring";
++            LOGW() << "MuseSampler " << m_version.toString() << " is not supported (too old -- update MuseSampler); ignoring";
+             return false;
+         }
+ 
+@@ -73,7 +105,7 @@ public:
+         constexpr int maximumMajorVersion = 0;
+ 
+         if (m_version.major() > maximumMajorVersion) {
+-            LOGE() << "MuseSampler " << m_version.toString() << " is not supported (too new -- update MuseScore Studio); ignoring";
++            LOGW() << "MuseSampler " << m_version.toString() << " is not supported (too new -- update MillerScore); ignoring";
+             return false;
+         }
+ 
+@@ -103,11 +135,17 @@ public:
+             LOGI() << "Use legacy audition (ms_MuseSampler_init)";
+ 
+             auto initSamplerFunc = (ms_MuseSampler_init)libFunc("ms_MuseSampler_init");
++            if (!initSamplerFunc) {
++                return false;
++            }
+             initSampler = [initSamplerFunc](ms_MuseSampler ms, double sample_rate, int block_size, int channel_count) {
+                 return initSamplerFunc(ms, sample_rate, block_size, channel_count) == ms_Result_OK;
+             };
+         } else {
+             auto initSamplerFunc = (ms_MuseSampler_init_2)libFunc("ms_MuseSampler_init_2");
++            if (!initSamplerFunc) {
++                return false;
++            }
+             initSampler = [initSamplerFunc](ms_MuseSampler ms, double sample_rate, int block_size, int channel_count) {
+                 return initSamplerFunc(ms, sample_rate, block_size, channel_count) == ms_Result_OK;
+             };
+@@ -125,12 +163,18 @@ public:
+         addPedalEvent = (ms_MuseSampler_add_track_pedal_event_2)libFunc("ms_MuseSampler_add_track_pedal_event_2");
+ 
+         auto addNoteEventFunc = (ms_MuseSampler_add_track_note_event_6)libFunc("ms_MuseSampler_add_track_note_event_6");
++        if (!addNoteEventFunc) {
++            return false;
++        }
+         addNoteEvent = [addNoteEventFunc](ms_MuseSampler ms, ms_Track track, const NoteEvent& ev, long long& event_id) {
+             return addNoteEventFunc(ms, track, ev, event_id) == ms_Result_OK;
+         };
+ 
+         auto startAuditionNoteFunc = (ms_MuseSampler_start_audition_note_5)libFunc(
+             "ms_MuseSampler_start_audition_note_5");
++        if (!startAuditionNoteFunc) {
++            return false;
++        }
+         startAuditionNote = [startAuditionNoteFunc](ms_MuseSampler ms, ms_Track track, ms_AuditionStartNoteEvent_5 ev) {
+             return startAuditionNoteFunc(ms, track, ev) == ms_Result_OK;
+         };
+@@ -167,7 +211,7 @@ public:
+         process = (ms_MuseSampler_process)libFunc("ms_MuseSampler_process");
+         allNotesOff = (ms_MuseSampler_all_notes_off)libFunc("ms_MuseSampler_all_notes_off");
+ 
+-        reloadAllInstruments = (ms_reload_all_instruments)libFunc("ms_reload_all_instruments");
++        reloadAllInstruments = (ms_reload_all_instruments)libFunc("ms_reload_all_instruments", false);
+         readyToPlay = (ms_MuseSampler_ready_to_play)libFunc("ms_MuseSampler_ready_to_play");
+ 
+         setLoggingCallback = (ms_set_logging_callback)libFunc("ms_set_logging_callback");
+@@ -184,7 +228,9 @@ public:
+         getNextRenderProgressInfo = (ms_RenderProgressInfo2_get_next)libFunc("ms_RenderProgressInfo2_get_next");
+         setLazyRender = (ms_MuseSampler_set_lazy_render)libFunc("ms_MuseSampler_set_lazy_render");
+ 
++        m_apiLoaded = true;
+         if (!isValid()) {
++            m_apiLoaded = false;
+             printApiStatus();
+             return false;
+         }
+@@ -194,16 +240,22 @@ public:
+ 
+     bool init()
+     {
+-        if (!initLib) {
+-            LOGE() << "Could not find ms_init";
++        if (!isValid()) {
++            LOGW() << "Optional MuseSampler API is unavailable or incomplete; continuing without Muse Sounds";
+             return false;
+         }
+ 
++        if (m_initialized) {
++            return true;
++        }
++
+         if (initLib() != ms_Result_OK) {
+             LOGE() << "Could not init lib";
+             return false;
+         }
+ 
++        m_initialized = true;
++
+         if (disableReverb) {
+             if (disableReverb() != ms_Result_OK) {
+                 LOGW() << "Could not disable reverb";
+@@ -215,23 +267,26 @@ public:
+ 
+     void deinit()
+     {
+-        IF_ASSERT_FAILED(m_lib) {
++        if (!m_lib) {
+             return;
+         }
+ 
+-        if (deinitLib) {
++        if (m_initialized && deinitLib) {
+             if (deinitLib() != ms_Result_OK) {
+                 LOGE() << "Could not deinit lib";
+             }
+         }
+ 
+-        muse::closeLib(m_lib);
++        m_initialized = false;
++        m_apiLoaded = false;
++        m_loader.close(m_lib);
+         m_lib = nullptr;
+     }
+ 
+     bool isValid() const
+     {
+         return m_lib
++               && m_apiLoaded
+                && initLib
+                && deinitLib
+                && disableReverb
+@@ -304,63 +359,63 @@ public:
+     void printApiStatus() const
+     {
+         LOGI() << "MuseSampler API status:"
+-               << "\n ms_init_2 - " << reinterpret_cast<uint64_t>(initLib)
+-               << "\n ms_deinit - " << reinterpret_cast<uint64_t>(deinitLib)
+-               << "\n ms_disable_reverb - " << reinterpret_cast<uint64_t>(disableReverb)
+-               << "\n ms_get_instrument_list - " << reinterpret_cast<uint64_t>(getInstrumentList)
+-               << "\n ms_get_matching_instrument_list - " << reinterpret_cast<uint64_t>(getMatchingInstrumentList)
+-               << "\n ms_get_drum_mapping - " << reinterpret_cast<uint64_t>(getDrumMapping)
+-               << "\n ms_InstrumentList_get_next - " << reinterpret_cast<uint64_t>(getNextInstrument)
+-               << "\n ms_Instrument_get_info_json - " << reinterpret_cast<uint64_t>(getInstrumentInfoJson)
+-               << "\n ms_Instrument_get_id - " << reinterpret_cast<uint64_t>(getInstrumentId)
+-               << "\n ms_Instrument_get_name - " << reinterpret_cast<uint64_t>(getInstrumentName)
+-               << "\n ms_Instrument_get_vendor_name - " << reinterpret_cast<uint64_t>(getInstrumentVendorName)
+-               << "\n ms_Instrument_get_category - " << reinterpret_cast<uint64_t>(getInstrumentCategory)
+-               << "\n ms_Instrument_get_pack_name - " << reinterpret_cast<uint64_t>(getInstrumentPackName)
+-               << "\n ms_Instrument_get_musicxml_sound - " << reinterpret_cast<uint64_t>(getMusicXmlSoundId)
+-               << "\n ms_Instrument_get_mpe_sound - " << reinterpret_cast<uint64_t>(getMpeSoundId)
+-               << "\n ms_Instrument_get_reverb_level - " << reinterpret_cast<uint64_t>(getReverbLevel)
+-               << "\n ms_Instrument_get_preset_list - " << reinterpret_cast<uint64_t>(getPresetList)
+-               << "\n ms_PresetList_get_next - " << reinterpret_cast<uint64_t>(getNextPreset)
+-               << "\n ms_MuseSampler_create_preset_change - " << reinterpret_cast<uint64_t>(createPresetChange)
+-               << "\n ms_MuseSampler_add_preset - " << reinterpret_cast<uint64_t>(addPreset)
+-               << "\n ms_get_text_articulations - " << reinterpret_cast<uint64_t>(getTextArticulations)
+-               << "\n ms_MuseSampler_add_track_text_articulation_event - " << reinterpret_cast<uint64_t>(addTextArticulationEvent)
+-               << "\n ms_MuseSampler_create - " << reinterpret_cast<uint64_t>(create)
+-               << "\n ms_MuseSampler_destroy - " << reinterpret_cast<uint64_t>(destroy)
+-               << "\n ms_MuseSampler_add_track - " << reinterpret_cast<uint64_t>(addTrack)
+-               << "\n ms_MuseSampler_clear_track - " << reinterpret_cast<uint64_t>(clearTrack)
+-               << "\n ms_MuseSampler_finalize_track - " << reinterpret_cast<uint64_t>(finalizeTrack)
+-               << "\n ms_MuseSampler_add_track_dynamics_event_2 - " << reinterpret_cast<uint64_t>(addDynamicsEvent)
+-               << "\n ms_MuseSampler_add_track_pedal_event_2 - " << reinterpret_cast<uint64_t>(addPedalEvent)
+-               << "\n ms_MuseSampler_add_pitch_bend - " << reinterpret_cast<uint64_t>(addPitchBend)
+-               << "\n ms_MuseSampler_stop_audition_note - " << reinterpret_cast<uint64_t>(stopAuditionNote)
+-               << "\n ms_MuseSampler_add_pitch_bend - " << reinterpret_cast<uint64_t>(addPitchBend)
+-               << "\n ms_MuseSampler_add_vibrato - " << reinterpret_cast<uint64_t>(addVibrato)
+-               << "\n ms_MuseSampler_is_ranged_articulation - " << reinterpret_cast<uint64_t>(isRangedArticulation)
+-               << "\n ms_MuseSampler_add_track_event_range_start - " << reinterpret_cast<uint64_t>(addTrackEventRangeStart)
+-               << "\n ms_MuseSampler_add_track_event_range_end - " << reinterpret_cast<uint64_t>(addTrackEventRangeEnd)
+-               << "\n ms_MuseSampler_add_audition_cc_event - " << reinterpret_cast<uint64_t>(addAuditionCCEvent)
+-               << "\n ms_MuseSampler_add_track_syllable_event_2 - " << reinterpret_cast<uint64_t>(addSyllableEvent)
+-               << "\n ms_MuseSampler_start_offline_mode - " << reinterpret_cast<uint64_t>(startOfflineMode)
+-               << "\n ms_MuseSampler_stop_offline_mode - " << reinterpret_cast<uint64_t>(stopOfflineMode)
+-               << "\n ms_MuseSampler_process_offline - " << reinterpret_cast<uint64_t>(processOffline)
+-               << "\n ms_MuseSampler_set_position - " << reinterpret_cast<uint64_t>(setPosition)
+-               << "\n ms_MuseSampler_set_playing - " << reinterpret_cast<uint64_t>(setPlaying)
+-               << "\n ms_MuseSampler_process - " << reinterpret_cast<uint64_t>(process)
+-               << "\n ms_MuseSampler_all_notes_off - " << reinterpret_cast<uint64_t>(allNotesOff)
+-               << "\n ms_MuseSampler_ready_to_play - " << reinterpret_cast<uint64_t>(readyToPlay)
+-               << "\n ms_Instrument_is_online - " << reinterpret_cast<uint64_t>(isOnlineInstrument)
+-               << "\n ms_MuseSampler_trigger_render - " << reinterpret_cast<uint64_t>(triggerRender)
+-               << "\n ms_reload_all_instruments - " << reinterpret_cast<uint64_t>(reloadAllInstruments)
+-               << "\n ms_set_logging_callback - " << reinterpret_cast<uint64_t>(setLoggingCallback)
++               << "\n ms_init_2 - " << static_cast<bool>(initLib)
++               << "\n ms_deinit - " << static_cast<bool>(deinitLib)
++               << "\n ms_disable_reverb - " << static_cast<bool>(disableReverb)
++               << "\n ms_get_instrument_list - " << static_cast<bool>(getInstrumentList)
++               << "\n ms_get_matching_instrument_list - " << static_cast<bool>(getMatchingInstrumentList)
++               << "\n ms_get_drum_mapping - " << static_cast<bool>(getDrumMapping)
++               << "\n ms_InstrumentList_get_next - " << static_cast<bool>(getNextInstrument)
++               << "\n ms_Instrument_get_info_json - " << static_cast<bool>(getInstrumentInfoJson)
++               << "\n ms_Instrument_get_id - " << static_cast<bool>(getInstrumentId)
++               << "\n ms_Instrument_get_name - " << static_cast<bool>(getInstrumentName)
++               << "\n ms_Instrument_get_vendor_name - " << static_cast<bool>(getInstrumentVendorName)
++               << "\n ms_Instrument_get_category - " << static_cast<bool>(getInstrumentCategory)
++               << "\n ms_Instrument_get_pack_name - " << static_cast<bool>(getInstrumentPackName)
++               << "\n ms_Instrument_get_musicxml_sound - " << static_cast<bool>(getMusicXmlSoundId)
++               << "\n ms_Instrument_get_mpe_sound - " << static_cast<bool>(getMpeSoundId)
++               << "\n ms_Instrument_get_reverb_level - " << static_cast<bool>(getReverbLevel)
++               << "\n ms_Instrument_get_preset_list - " << static_cast<bool>(getPresetList)
++               << "\n ms_PresetList_get_next - " << static_cast<bool>(getNextPreset)
++               << "\n ms_MuseSampler_create_preset_change - " << static_cast<bool>(createPresetChange)
++               << "\n ms_MuseSampler_add_preset - " << static_cast<bool>(addPreset)
++               << "\n ms_get_text_articulations - " << static_cast<bool>(getTextArticulations)
++               << "\n ms_MuseSampler_add_track_text_articulation_event - " << static_cast<bool>(addTextArticulationEvent)
++               << "\n ms_MuseSampler_create - " << static_cast<bool>(create)
++               << "\n ms_MuseSampler_destroy - " << static_cast<bool>(destroy)
++               << "\n ms_MuseSampler_add_track - " << static_cast<bool>(addTrack)
++               << "\n ms_MuseSampler_clear_track - " << static_cast<bool>(clearTrack)
++               << "\n ms_MuseSampler_finalize_track - " << static_cast<bool>(finalizeTrack)
++               << "\n ms_MuseSampler_add_track_dynamics_event_2 - " << static_cast<bool>(addDynamicsEvent)
++               << "\n ms_MuseSampler_add_track_pedal_event_2 - " << static_cast<bool>(addPedalEvent)
++               << "\n ms_MuseSampler_add_pitch_bend - " << static_cast<bool>(addPitchBend)
++               << "\n ms_MuseSampler_stop_audition_note - " << static_cast<bool>(stopAuditionNote)
++               << "\n ms_MuseSampler_add_pitch_bend - " << static_cast<bool>(addPitchBend)
++               << "\n ms_MuseSampler_add_vibrato - " << static_cast<bool>(addVibrato)
++               << "\n ms_MuseSampler_is_ranged_articulation - " << static_cast<bool>(isRangedArticulation)
++               << "\n ms_MuseSampler_add_track_event_range_start - " << static_cast<bool>(addTrackEventRangeStart)
++               << "\n ms_MuseSampler_add_track_event_range_end - " << static_cast<bool>(addTrackEventRangeEnd)
++               << "\n ms_MuseSampler_add_audition_cc_event - " << static_cast<bool>(addAuditionCCEvent)
++               << "\n ms_MuseSampler_add_track_syllable_event_2 - " << static_cast<bool>(addSyllableEvent)
++               << "\n ms_MuseSampler_start_offline_mode - " << static_cast<bool>(startOfflineMode)
++               << "\n ms_MuseSampler_stop_offline_mode - " << static_cast<bool>(stopOfflineMode)
++               << "\n ms_MuseSampler_process_offline - " << static_cast<bool>(processOffline)
++               << "\n ms_MuseSampler_set_position - " << static_cast<bool>(setPosition)
++               << "\n ms_MuseSampler_set_playing - " << static_cast<bool>(setPlaying)
++               << "\n ms_MuseSampler_process - " << static_cast<bool>(process)
++               << "\n ms_MuseSampler_all_notes_off - " << static_cast<bool>(allNotesOff)
++               << "\n ms_MuseSampler_ready_to_play - " << static_cast<bool>(readyToPlay)
++               << "\n ms_Instrument_is_online - " << static_cast<bool>(isOnlineInstrument)
++               << "\n ms_MuseSampler_trigger_render - " << static_cast<bool>(triggerRender)
++               << "\n ms_reload_all_instruments - " << static_cast<bool>(reloadAllInstruments)
++               << "\n ms_set_logging_callback - " << static_cast<bool>(setLoggingCallback)
+                << "\n ms_MuseSampler_set_rendering_state_changed_callback_2 - " <<
+-            reinterpret_cast<uint64_t>(setRenderingStateChangedCallback)
+-               << "\n ms_MuseSampler_set_score_id - " << reinterpret_cast<uint64_t>(setScoreId)
+-               << "\n ms_MuseSampler_clear_online_cache - " << reinterpret_cast<uint64_t>(clearOnlineCache)
+-               << "\n ms_RenderProgressInfo2_get_next - " << reinterpret_cast<uint64_t>(getNextRenderProgressInfo)
+-               << "\n ms_MuseSampler_set_auto_render_interval - " << reinterpret_cast<uint64_t>(setAutoRenderInterval)
+-               << "\n ms_MuseSampler_set_lazy_render - " << reinterpret_cast<uint64_t>(setLazyRender);
++            static_cast<bool>(setRenderingStateChangedCallback)
++               << "\n ms_MuseSampler_set_score_id - " << static_cast<bool>(setScoreId)
++               << "\n ms_MuseSampler_clear_online_cache - " << static_cast<bool>(clearOnlineCache)
++               << "\n ms_RenderProgressInfo2_get_next - " << static_cast<bool>(getNextRenderProgressInfo)
++               << "\n ms_MuseSampler_set_auto_render_interval - " << static_cast<bool>(setAutoRenderInterval)
++               << "\n ms_MuseSampler_set_lazy_render - " << static_cast<bool>(setLazyRender);
+     }
+ 
+     ms_get_instrument_list getInstrumentList = nullptr;
+@@ -435,9 +490,13 @@ public:
+     ms_MuseSampler_set_lazy_render setLazyRender = nullptr;
+ 
+ private:
+-    void* libFunc(const char* funcName)
++    void* libFunc(const char* funcName, bool required = true)
+     {
+-        return muse::getLibFunc(m_lib, funcName);
++        void* func = m_loader.resolve(m_lib, funcName);
++        if (!func && required) {
++            LOGW() << "Optional MuseSampler library is missing a required API function: " << funcName;
++        }
++        return func;
+     }
+ 
+     ms_init_2 initLib = nullptr;
+@@ -445,6 +504,9 @@ private:
+     ms_disable_reverb disableReverb = nullptr;
+ 
+     MuseSamplerLib m_lib = nullptr;
++    LibraryLoader m_loader;
++    bool m_initialized = false;
++    bool m_apiLoaded = false;
+     Version m_version;
+     int m_buildNumber = -1;
+ };
+diff --git a/framework/musesampler/internal/musesamplerresolver.cpp b/framework/musesampler/internal/musesamplerresolver.cpp
+index 5b3ae1553..82c84df44 100644
+--- a/framework/musesampler/internal/musesamplerresolver.cpp
++++ b/framework/musesampler/internal/musesamplerresolver.cpp
+@@ -84,13 +84,13 @@ void MuseSamplerResolver::init()
+ 
+     const io::path_t libraryPath = configuration()->libraryPath();
+     if (io::isAbsolute(libraryPath) && !io::FileInfo::exists(libraryPath)) {
+-        LOGI() << "MuseSampler library not found: " << libraryPath;
++        LOGI() << "Optional MuseSampler library is not installed; continuing without Muse Sounds";
+         return;
+     }
+ 
+     m_libHandler = std::make_shared<MuseSamplerLibHandler>();
+     if (!m_libHandler->loadLib(libraryPath)) {
+-        LOGE() << "Unable to load MuseSampler library: " << libraryPath;
++        LOGW() << "Optional MuseSampler library could not be loaded; check its installation. Continuing without Muse Sounds";
+         m_libHandler.reset();
+         return;
+     }
+@@ -99,7 +99,8 @@ void MuseSamplerResolver::init()
+         m_samplerVersion = m_libHandler->version();
+         m_samplerBuildNumber = m_libHandler->buildNumber();
+         m_libHandler.reset();
+-        LOGE() << "Incompatible MuseSampler library: " << libraryPath << ", version: " << m_samplerVersion.toString();
++        LOGW() << "Incompatible optional MuseSampler library, version: " << m_samplerVersion.toString()
++               << "; continuing without Muse Sounds";
+         return;
+     }
+ 
+@@ -107,43 +108,44 @@ void MuseSamplerResolver::init()
+     m_samplerBuildNumber = m_libHandler->buildNumber();
+ 
+     if (!m_libHandler->init()) {
+-        LOGE() << "Could not init MuseSampler: " << libraryPath << ", version: " << m_samplerVersion.toString();
++        LOGW() << "Optional MuseSampler initialization failed, version: " << m_samplerVersion.toString()
++               << "; continuing without Muse Sounds";
+         m_libHandler.reset();
+         return;
+     }
+ 
+-    m_libHandler->setLoggingCallback([](ms_ErrorLevel level, const char* msg) {
++    // Third-party messages may contain private sound-library paths. Keep shared diagnostics safe.
++    m_libHandler->setLoggingCallback([](ms_ErrorLevel level, const char*) {
+         switch (level) {
+             case ms_ErrorLevel_Debug:
+-                LOGD() << msg;
++                LOGD() << "MuseSampler reported a debug event";
+                 break;
+             case ms_ErrorLevel_Info:
+-                LOGI() << msg;
++                LOGI() << "MuseSampler reported an informational event";
+                 break;
+             case ms_ErrorLevel_Warning:
+-                LOGW() << msg;
++                LOGW() << "MuseSampler reported a warning; check the separately installed sampler and sounds";
+                 break;
+             case ms_ErrorLevel_Error:
+-                LOGE() << msg;
++                LOGE() << "MuseSampler reported an error; check the separately installed sampler and sounds";
+                 break;
+         }
+     });
+ 
+-    LOGI() << "MuseSampler successfully inited: " << libraryPath << ", version: " << m_samplerVersion.toString();
++    LOGI() << "Optional MuseSampler initialized, version: " << m_samplerVersion.toString();
+ }
+ 
+ void MuseSamplerResolver::deinit()
+ {
+     TRACEFUNC;
+ 
+-    if (m_libHandler) {
+-        m_libHandler->deinit();
+-    }
++    // Wrappers share the handler. Release the library after the last sampler has been destroyed.
++    m_libHandler.reset();
+ }
+ 
+ bool MuseSamplerResolver::reloadAllInstruments()
+ {
+-    if (!m_libHandler) {
++    if (!m_libHandler || !m_libHandler->reloadAllInstruments) {
+         return false;
+     }
+ 
+@@ -273,11 +275,7 @@ const Version& MuseSamplerResolver::version() const
+ 
+ bool MuseSamplerResolver::isLoaded() const
+ {
+-    if (m_libHandler) {
+-        return true;
+-    }
+-
+-    return false;
++    return m_libHandler && m_libHandler->isValid();
+ }
+ 
+ float MuseSamplerResolver::defaultReverbLevel(const String& instrumentSoundId) const
+diff --git a/framework/musesampler/internal/musesamplerwrapper.cpp b/framework/musesampler/internal/musesamplerwrapper.cpp
+index 68e68443c..457aec114 100644
+--- a/framework/musesampler/internal/musesamplerwrapper.cpp
++++ b/framework/musesampler/internal/musesamplerwrapper.cpp
+@@ -46,7 +46,7 @@ static InputProcessingProgress::StatusInfo::StatusData parseStatusData(const std
+     JsonDocument doc = JsonDocument::fromJson(ba, &err);
+ 
+     if (!err.empty() || !doc.isObject()) {
+-        LOGE() << "JSON parse error: " << err << ", json: " << json;
++        LOGW() << "MuseSampler returned invalid rendering status data";
+         return {};
+     }
+ 
+diff --git a/framework/musesampler/tests/CMakeLists.txt b/framework/musesampler/tests/CMakeLists.txt
+new file mode 100644
+index 000000000..4efd86539
+--- /dev/null
++++ b/framework/musesampler/tests/CMakeLists.txt
+@@ -0,0 +1,6 @@
++# SPDX-License-Identifier: GPL-3.0-only
++# MuseScore-Studio-CLA-applies
++
++set(MODULE_TEST muse_musesampler_tests)
++set(MODULE_TEST_SRC ${CMAKE_CURRENT_LIST_DIR}/libhandler_tests.cpp)
++include(SetupGTest)
+diff --git a/framework/musesampler/tests/libhandler_tests.cpp b/framework/musesampler/tests/libhandler_tests.cpp
+new file mode 100644
+index 000000000..621a7fddb
+--- /dev/null
++++ b/framework/musesampler/tests/libhandler_tests.cpp
+@@ -0,0 +1,398 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-only
++ * MuseScore-CLA-applies
++ *
++ * Copyright (C) 2026 MuseScore Limited and others
++ */
++
++#include <functional>
++#include <gtest/gtest.h>
++#include <QtGlobal>
++#include <QFile>
++#include <QTemporaryDir>
++
++#include "musesampler/internal/libhandler.h"
++
++using namespace muse;
++using namespace muse::musesampler;
++
++namespace {
++struct FakeLibrary {
++    bool available = true;
++    std::string missingExport;
++    int major = 0;
++    int minor = 105;
++    int revision = 0;
++    ms_Result initResult = ms_Result_OK;
++    ms_Result deinitResult = ms_Result_OK;
++    ms_Result samplerResult = ms_Result_OK;
++    int loads = 0;
++    int closes = 0;
++    int initializations = 0;
++    int shutdowns = 0;
++    int samplerInitializations = 0;
++    int noteEvents = 0;
++    int auditionEvents = 0;
++};
++
++FakeLibrary* activeLibrary = nullptr;
++
++MuseSamplerLib fakeLoad(const io::path_t&)
++{
++    ++activeLibrary->loads;
++    return activeLibrary->available ? activeLibrary : nullptr;
++}
++
++void fakeClose(MuseSamplerLib handle)
++{
++    ++static_cast<FakeLibrary*>(handle)->closes;
++}
++
++int fakeMajor() { return activeLibrary->major; }
++int fakeMinor() { return activeLibrary->minor; }
++int fakeRevision() { return activeLibrary->revision; }
++ms_Result fakeInit() { ++activeLibrary->initializations; return activeLibrary->initResult; }
++ms_Result fakeDeinit() { ++activeLibrary->shutdowns; return activeLibrary->deinitResult; }
++ms_Result fakeDisableReverb() { return ms_Result_OK; }
++void unusedExport() {}
++
++ms_Result fakeSamplerInit(ms_MuseSampler, double, int, int)
++{
++    ++activeLibrary->samplerInitializations;
++    return activeLibrary->samplerResult;
++}
++
++ms_Result fakeNoteEvent(ms_MuseSampler, ms_Track, NoteEvent, long long& eventId)
++{
++    ++activeLibrary->noteEvents;
++    eventId = 42;
++    return activeLibrary->samplerResult;
++}
++
++ms_Result fakeAuditionEvent(ms_MuseSampler, ms_Track, ms_AuditionStartNoteEvent_5)
++{
++    ++activeLibrary->auditionEvents;
++    return activeLibrary->samplerResult;
++}
++
++void* fakeResolve(MuseSamplerLib, const char* name)
++{
++    if (activeLibrary->missingExport == name) {
++        return nullptr;
++    }
++    if (std::strcmp(name, "ms_get_version_major") == 0) { return reinterpret_cast<void*>(fakeMajor); }
++    if (std::strcmp(name, "ms_get_version_minor") == 0) { return reinterpret_cast<void*>(fakeMinor); }
++    if (std::strcmp(name, "ms_get_version_revision") == 0) { return reinterpret_cast<void*>(fakeRevision); }
++    if (std::strcmp(name, "ms_get_version_build_number") == 0) { return nullptr; }
++    if (std::strcmp(name, "ms_init_2") == 0) { return reinterpret_cast<void*>(fakeInit); }
++    if (std::strcmp(name, "ms_deinit") == 0) { return reinterpret_cast<void*>(fakeDeinit); }
++    if (std::strcmp(name, "ms_disable_reverb") == 0) { return reinterpret_cast<void*>(fakeDisableReverb); }
++    if (std::strcmp(name, "ms_MuseSampler_init_2") == 0 || std::strcmp(name, "ms_MuseSampler_init") == 0) {
++        return reinterpret_cast<void*>(fakeSamplerInit);
++    }
++    if (std::strcmp(name, "ms_MuseSampler_add_track_note_event_6") == 0) { return reinterpret_cast<void*>(fakeNoteEvent); }
++    if (std::strcmp(name, "ms_MuseSampler_start_audition_note_5") == 0) { return reinterpret_cast<void*>(fakeAuditionEvent); }
++    // These remaining exports are checked for presence, never called by the tests.
++    return reinterpret_cast<void*>(unusedExport);
++}
++
++const MuseSamplerLibHandler::LibraryLoader fakeLoader { fakeLoad, fakeResolve, fakeClose };
++const Version minimumVersion(0, 105, 0);
++
++class MuseSamplerLibHandlerTests : public ::testing::Test
++{
++protected:
++    void SetUp() override { activeLibrary = &library; }
++    void TearDown() override { activeLibrary = nullptr; }
++    FakeLibrary library;
++};
++}
++
++TEST_F(MuseSamplerLibHandlerTests, AbsentOptionalLibraryIsNotValid)
++{
++    library.available = false;
++    MuseSamplerLibHandler handler(fakeLoader);
++    EXPECT_FALSE(handler.loadLib("optional-library"));
++    EXPECT_FALSE(handler.isValid());
++    EXPECT_FALSE(handler.init());
++    EXPECT_EQ(library.initializations, 0);
++    EXPECT_EQ(library.closes, 0);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, CompatibleApiInitializesAndClosesOnce)
++{
++    {
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        ASSERT_TRUE(handler.loadApi(minimumVersion));
++        EXPECT_EQ(handler.buildNumber(), -1);
++        EXPECT_TRUE(handler.init());
++        EXPECT_TRUE(handler.init());
++        handler.deinit();
++        handler.deinit();
++        EXPECT_FALSE(handler.isValid());
++    }
++    EXPECT_EQ(library.initializations, 1);
++    EXPECT_EQ(library.shutdowns, 1);
++    EXPECT_EQ(library.closes, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, DestroyingLiveHandlerShutsDownLibrary)
++{
++    {
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        ASSERT_TRUE(handler.loadApi(minimumVersion));
++        ASSERT_TRUE(handler.init());
++    }
++    EXPECT_EQ(library.shutdowns, 1);
++    EXPECT_EQ(library.closes, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, FailedInitializationClosesWithoutShutdown)
++{
++    library.initResult = ms_Result_Error;
++    {
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        ASSERT_TRUE(handler.loadApi(minimumVersion));
++        EXPECT_FALSE(handler.init());
++    }
++    EXPECT_EQ(library.initializations, 1);
++    EXPECT_EQ(library.shutdowns, 0);
++    EXPECT_EQ(library.closes, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, UnsupportedVersionClosesWithoutInitialization)
++{
++    for (const auto& version : { std::pair { 0, 104 }, std::pair { 1, 105 } }) {
++        library.major = version.first;
++        library.minor = version.second;
++        {
++            MuseSamplerLibHandler handler(fakeLoader);
++            ASSERT_TRUE(handler.loadLib("optional-library"));
++            EXPECT_FALSE(handler.loadApi(minimumVersion));
++            EXPECT_FALSE(handler.isValid());
++            EXPECT_FALSE(handler.init());
++        }
++    }
++    EXPECT_EQ(library.initializations, 0);
++    EXPECT_EQ(library.shutdowns, 0);
++    EXPECT_EQ(library.closes, 2);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, MissingVersionExportsRejectApi)
++{
++    for (const auto* name : { "ms_get_version_major", "ms_get_version_minor", "ms_get_version_revision" }) {
++        library.missingExport = name;
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        EXPECT_FALSE(handler.loadApi(minimumVersion));
++        EXPECT_FALSE(handler.isValid());
++    }
++    EXPECT_EQ(library.shutdowns, 0);
++    EXPECT_EQ(library.closes, 3);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, MissingWrappedExportsRejectApi)
++{
++    for (const auto* name : { "ms_MuseSampler_init_2", "ms_MuseSampler_add_track_note_event_6",
++                             "ms_MuseSampler_start_audition_note_5" }) {
++        SCOPED_TRACE(name);
++        library.missingExport = name;
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        EXPECT_FALSE(handler.loadApi(minimumVersion));
++        EXPECT_FALSE(handler.isValid());
++        EXPECT_FALSE(handler.init());
++    }
++    EXPECT_EQ(library.initializations, 0);
++    EXPECT_EQ(library.closes, 3);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, MissingLegacyInitializerRejectsApi)
++{
++    library.missingExport = "ms_MuseSampler_init";
++    MuseSamplerLibHandler handler(fakeLoader);
++    ASSERT_TRUE(handler.loadLib("optional-library"));
++    EXPECT_FALSE(handler.loadApi(minimumVersion, true));
++    EXPECT_FALSE(handler.isValid());
++}
++
++TEST_F(MuseSamplerLibHandlerTests, WrappedExportsPropagateSuccessAndFailure)
++{
++    for (const bool legacy : { false, true }) {
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        ASSERT_TRUE(handler.loadApi(minimumVersion, legacy));
++        for (const ms_Result result : { ms_Result_OK, ms_Result_Error }) {
++            library.samplerResult = result;
++            const bool success = result == ms_Result_OK;
++            long long eventId = 0;
++            EXPECT_EQ(handler.initSampler(nullptr, 48000, 512, 2), success);
++            EXPECT_EQ(handler.addNoteEvent(nullptr, nullptr, {}, eventId), success);
++            EXPECT_EQ(eventId, 42);
++            EXPECT_EQ(handler.startAuditionNote(nullptr, nullptr, {}), success);
++        }
++    }
++    EXPECT_EQ(library.samplerInitializations, 4);
++    EXPECT_EQ(library.noteEvents, 4);
++    EXPECT_EQ(library.auditionEvents, 4);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, ShutdownFailureStillClosesLibrary)
++{
++    library.deinitResult = ms_Result_Error;
++    {
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        ASSERT_TRUE(handler.loadApi(minimumVersion));
++        ASSERT_TRUE(handler.init());
++        handler.deinit();
++        EXPECT_FALSE(handler.isValid());
++    }
++    EXPECT_EQ(library.shutdowns, 1);
++    EXPECT_EQ(library.closes, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, ClosingUninitializedApiDoesNotCallShutdown)
++{
++    MuseSamplerLibHandler handler(fakeLoader);
++    ASSERT_TRUE(handler.loadLib("optional-library"));
++    ASSERT_TRUE(handler.loadApi(minimumVersion));
++    handler.deinit();
++    EXPECT_EQ(library.shutdowns, 0);
++    EXPECT_EQ(library.closes, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, CannotReplaceLiveLibraryOrInitializedApi)
++{
++    MuseSamplerLibHandler handler(fakeLoader);
++    ASSERT_TRUE(handler.loadLib("optional-library"));
++    ASSERT_TRUE(handler.loadApi(minimumVersion));
++    ASSERT_TRUE(handler.init());
++    EXPECT_FALSE(handler.loadLib("replacement-library"));
++    EXPECT_FALSE(handler.loadApi(minimumVersion));
++    EXPECT_TRUE(handler.isValid());
++    EXPECT_EQ(library.loads, 1);
++    EXPECT_EQ(library.initializations, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, FailedApiReloadInvalidatesPreviousExports)
++{
++    MuseSamplerLibHandler handler(fakeLoader);
++    ASSERT_TRUE(handler.loadLib("optional-library"));
++    ASSERT_TRUE(handler.loadApi(minimumVersion));
++    library.missingExport = "ms_MuseSampler_init_2";
++    EXPECT_FALSE(handler.loadApi(minimumVersion));
++    EXPECT_FALSE(handler.isValid());
++    EXPECT_FALSE(handler.init());
++    EXPECT_EQ(library.initializations, 0);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, ReopeningLibraryRequiresFreshApiValidation)
++{
++    MuseSamplerLibHandler handler(fakeLoader);
++    ASSERT_TRUE(handler.loadLib("optional-library"));
++    ASSERT_TRUE(handler.loadApi(minimumVersion));
++    handler.deinit();
++    ASSERT_TRUE(handler.loadLib("replacement-library"));
++    EXPECT_FALSE(handler.isValid());
++    EXPECT_FALSE(handler.init());
++    EXPECT_EQ(handler.buildNumber(), -1);
++    EXPECT_TRUE(handler.loadApi(minimumVersion));
++    EXPECT_TRUE(handler.init());
++}
++
++TEST_F(MuseSamplerLibHandlerTests, SharedSamplerOwnershipDefersLibraryShutdown)
++{
++    auto resolverOwner = std::make_shared<MuseSamplerLibHandler>(fakeLoader);
++    ASSERT_TRUE(resolverOwner->loadLib("optional-library"));
++    ASSERT_TRUE(resolverOwner->loadApi(minimumVersion));
++    ASSERT_TRUE(resolverOwner->init());
++    auto samplerOwner = resolverOwner;
++    resolverOwner.reset();
++    EXPECT_EQ(library.shutdowns, 0);
++    EXPECT_TRUE(samplerOwner->isValid());
++    samplerOwner.reset();
++    EXPECT_EQ(library.shutdowns, 1);
++    EXPECT_EQ(library.closes, 1);
++}
++
++TEST_F(MuseSamplerLibHandlerTests, InstrumentReloadExportIsOptional)
++{
++    library.missingExport = "ms_reload_all_instruments";
++    MuseSamplerLibHandler handler(fakeLoader);
++    ASSERT_TRUE(handler.loadLib("optional-library"));
++    ASSERT_TRUE(handler.loadApi(minimumVersion));
++    EXPECT_EQ(handler.reloadAllInstruments, nullptr);
++    EXPECT_TRUE(handler.init());
++}
++
++TEST(MuseSamplerNativeLoaderTests, MissingOptionalLibraryDoesNotLoad)
++{
++    QTemporaryDir fixture;
++    ASSERT_TRUE(fixture.isValid());
++    MuseSamplerLibHandler handler;
++    EXPECT_FALSE(handler.loadLib(io::path_t(fixture.path() + "/missing-optional-sampler.dll")));
++    EXPECT_FALSE(handler.isValid());
++    EXPECT_FALSE(handler.init());
++}
++
++TEST(MuseSamplerNativeLoaderTests, CorruptLibraryAtUnicodePathDoesNotLoad)
++{
++    QTemporaryDir fixture(QDir::tempPath() + "/millerscore sampler Å 测试-XXXXXX");
++    ASSERT_TRUE(fixture.isValid());
++    const QString filePath = fixture.path() + "/MuseSamplerCoreLib.dll";
++    QFile file(filePath);
++    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
++    ASSERT_EQ(file.write("Invalid library fixture"), 23);
++    file.close();
++    MuseSamplerLibHandler handler;
++    EXPECT_FALSE(handler.loadLib(io::path_t(filePath)));
++    EXPECT_FALSE(handler.isValid());
++    EXPECT_FALSE(handler.init());
++}
++
++class MuseSamplerRequiredExportTests : public MuseSamplerLibHandlerTests, public ::testing::WithParamInterface<const char*>
++{
++};
++
++TEST_P(MuseSamplerRequiredExportTests, PartialLibraryIsRejectedBeforeInitialization)
++{
++    library.missingExport = GetParam();
++    {
++        MuseSamplerLibHandler handler(fakeLoader);
++        ASSERT_TRUE(handler.loadLib("optional-library"));
++        EXPECT_FALSE(handler.loadApi(minimumVersion));
++        EXPECT_FALSE(handler.isValid());
++        EXPECT_FALSE(handler.init());
++    }
++    EXPECT_EQ(library.initializations, 0);
++    EXPECT_EQ(library.shutdowns, 0);
++    EXPECT_EQ(library.closes, 1);
++}
++
++INSTANTIATE_TEST_SUITE_P(RequiredApi, MuseSamplerRequiredExportTests, ::testing::Values(
++                            "ms_get_version_major", "ms_get_version_minor", "ms_get_version_revision",
++                            "ms_init_2", "ms_deinit", "ms_get_instrument_list", "ms_get_matching_instrument_list",
++                            "ms_InstrumentList_get_next", "ms_Instrument_get_id", "ms_Instrument_get_name",
++                            "ms_Instrument_get_category", "ms_Instrument_get_musicxml_sound", "ms_Instrument_get_mpe_sound",
++                            "ms_Instrument_get_preset_list", "ms_PresetList_get_next", "ms_MuseSampler_create", "ms_MuseSampler_destroy",
++                            "ms_MuseSampler_init_2", "ms_MuseSampler_add_track", "ms_MuseSampler_finalize_track",
++                            "ms_MuseSampler_clear_track", "ms_disable_reverb", "ms_Instrument_get_reverb_level",
++                            "ms_MuseSampler_add_track_dynamics_event_2", "ms_MuseSampler_add_track_pedal_event_2",
++                            "ms_MuseSampler_add_track_note_event_6", "ms_MuseSampler_start_audition_note_5",
++                            "ms_MuseSampler_is_ranged_articulation", "ms_MuseSampler_add_track_event_range_start",
++                            "ms_MuseSampler_add_track_event_range_end", "ms_MuseSampler_stop_audition_note",
++                            "ms_MuseSampler_add_track_syllable_event_2", "ms_Instrument_get_vendor_name", "ms_Instrument_get_pack_name",
++                            "ms_Instrument_get_info_json", "ms_MuseSampler_create_preset_change", "ms_MuseSampler_add_preset",
++                            "ms_get_text_articulations", "ms_MuseSampler_add_track_text_articulation_event", "ms_get_drum_mapping",
++                            "ms_MuseSampler_add_pitch_bend", "ms_MuseSampler_add_vibrato", "ms_MuseSampler_start_offline_mode",
++                            "ms_MuseSampler_stop_offline_mode", "ms_MuseSampler_process_offline", "ms_MuseSampler_set_position",
++                            "ms_MuseSampler_set_playing", "ms_MuseSampler_process", "ms_MuseSampler_all_notes_off",
++                            "ms_MuseSampler_ready_to_play", "ms_set_logging_callback", "ms_Instrument_is_online",
++                            "ms_MuseSampler_set_score_id", "ms_MuseSampler_set_auto_render_interval", "ms_MuseSampler_trigger_render",
++                            "ms_MuseSampler_clear_online_cache", "ms_MuseSampler_add_audition_cc_event",
++                            "ms_MuseSampler_set_rendering_state_changed_callback_2", "ms_RenderProgressInfo2_get_next",
++                            "ms_MuseSampler_set_lazy_render"));

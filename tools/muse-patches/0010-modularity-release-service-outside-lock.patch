@@ -1,0 +1,24 @@
+diff --git a/framework/global/thirdparty/kors_modularity/modularity/modulesioc.h b/framework/global/thirdparty/kors_modularity/modularity/modulesioc.h
+index 3b8799355..d22367524 100644
+--- a/framework/global/thirdparty/kors_modularity/modularity/modulesioc.h
++++ b/framework/global/thirdparty/kors_modularity/modularity/modulesioc.h
+@@ -160,6 +160,11 @@ protected:
+     void unregisterService(const InterfaceInfo& info)
+     {
+         std::map<int, OnChangedInternal> onChanges;
++        //! NOTE The service may hold the last references to injected services whose
++        //! destructors unsubscribe through this IoC; destroying it while m_mutex is
++        //! held throws std::system_error from a destructor (fast fail on shutdown).
++        //! Like reset(), release it only after the lock is gone.
++        std::shared_ptr<IModuleInterface> released;
+         {
+             std::lock_guard<std::mutex> lock(m_mutex);
+             auto it = m_map.find(info.id);
+@@ -167,6 +172,7 @@ protected:
+                 return;
+             }
+ 
++            released = std::move(it->second.p);
+             it->second.p = nullptr;
+             onChanges = it->second.onChanges;
+         }

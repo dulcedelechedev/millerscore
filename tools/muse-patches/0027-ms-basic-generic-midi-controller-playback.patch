@@ -1,0 +1,770 @@
+diff --git a/framework/audio/common/rpc/rpcpacker.h b/framework/audio/common/rpc/rpcpacker.h
+index 5bc8c7ceb..7ec03726f 100644
+--- a/framework/audio/common/rpc/rpcpacker.h
++++ b/framework/audio/common/rpc/rpcpacker.h
+@@ -582,13 +582,13 @@ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::mpe::SyllableEvent&
+ 
+ inline void pack_custom(muse::msgpack::Packer& p, const muse::mpe::ControllerChangeEvent& value)
+ {
+-    p.process(static_cast<int8_t>(value.type), value.val, value.layerIdx);
++    p.process(static_cast<int8_t>(value.type), value.val, value.layerIdx, value.controllerNumber);
+ }
+ 
+ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::mpe::ControllerChangeEvent& value)
+ {
+     int8_t type = 0;
+-    p.process(type, value.val, value.layerIdx);
++    p.process(type, value.val, value.layerIdx, value.controllerNumber);
+     value.type = static_cast<muse::mpe::ControllerChangeEvent::Type>(type);
+ }
+ 
+diff --git a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.cpp b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.cpp
+index dffcf9c36..ff3907d40 100644
+--- a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.cpp
++++ b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.cpp
+@@ -23,6 +23,7 @@
+ #include "fluidsequencer.h"
+ 
+ #include <set>
++#include <cmath>
+ 
+ #include "global/interpolation.h"
+ 
+@@ -92,6 +93,8 @@ void FluidSequencer::updateMainStreamEvents(const mpe::PlaybackEventsMap& events
+         m_onMainStreamFlushed();
+     }
+ 
++    m_genericControllerEvents.clear();
++
+     addPlaybackEvents(m_mainStreamEvents, events, true /*isMainStream*/);
+ 
+     if (m_useDynamicEvents) {
+@@ -126,12 +129,35 @@ void FluidSequencer::addPlaybackEvents(EventSequenceMap& destination, const mpe:
+ {
+     SostenutoTimeAndDurations sostenutoTimeAndDurations;
+ 
++    // Initial controller points must reach channels that first sound later in the score.
++    for (const auto& [_, sequence] : events) {
++        for (const auto& event : sequence) {
++            if (const auto* note = std::get_if<mpe::NoteEvent>(&event)) {
++                resolveChannel(*note);
++            }
++        }
++    }
++
++    if (isMainStream) {
++        for (const auto& [timestamp, sequence] : events) {
++            for (const auto& event : sequence) {
++                const auto* controller = std::get_if<mpe::ControllerChangeEvent>(&event);
++                if (controller && controller->type == mpe::ControllerChangeEvent::GenericMidiController) {
++                    addGenericControllerEvent(destination, timestamp, *controller);
++                }
++            }
++        }
++    }
++
+     for (const auto& pair : events) {
+         for (const mpe::PlaybackEvent& event : pair.second) {
+             if (std::holds_alternative<mpe::NoteEvent>(event)) {
+                 addNoteEvent(destination, std::get<mpe::NoteEvent>(event), sostenutoTimeAndDurations, isMainStream);
+             } else if (std::holds_alternative<mpe::ControllerChangeEvent>(event)) {
+-                addControlChangeEvent(destination, pair.first, std::get<mpe::ControllerChangeEvent>(event));
++                const auto& controller = std::get<mpe::ControllerChangeEvent>(event);
++                if (controller.type != mpe::ControllerChangeEvent::GenericMidiController) {
++                    addControlChangeEvent(destination, pair.first, controller);
++                }
+             }
+         }
+     }
+@@ -164,6 +190,9 @@ void FluidSequencer::addDynamicEvents(EventSequenceMap& destination, const mpe::
+             lastLevel = level;
+ 
+             for (const channel_t channelIdx : channels) {
++                if (m_genericControllerEvents.count({ channelIdx, midi::EXPRESSION_CONTROLLER })) {
++                    continue;
++                }
+                 midi::Event event(Event::Opcode::ControlChange, Event::MessageType::ChannelVoice10);
+                 event.setChannel(channelIdx);
+                 event.setIndex(midi::EXPRESSION_CONTROLLER);
+@@ -279,21 +308,87 @@ void FluidSequencer::addControlChangeEvent(EventSequenceMap& destination, const
+                          static_cast<uint32_t>(event.val * 16383.f));
+             break;
+         case mpe::ControllerChangeEvent::Undefined:
++        case mpe::ControllerChangeEvent::GenericMidiController:
+             break;
+         }
+     }
+ }
+ 
++void FluidSequencer::addGenericControllerEvent(EventSequenceMap& destination, const mpe::timestamp_t timestamp,
++                                               const mpe::ControllerChangeEvent& event)
++{
++    const float value = event.val.raw();
++    if (timestamp < 0 || !mpe::isSafeMidiController(event.controllerNumber)
++        || !std::isfinite(value) || value < 0.f || value > 1.f) {
++        return;
++    }
++
++    const auto layer = m_channels.data().find(m_channels.normalizedLayer(event.layerIdx));
++    if (layer == m_channels.data().end()) {
++        return;
++    }
++
++    std::set<channel_t> channels;
++    for (const auto& [_, mapping] : layer->second) {
++        channels.insert(mapping.first);
++    }
++
++    const int midiValue = static_cast<int>(std::lround(value * 127.f));
++    for (const channel_t channel : channels) {
++        m_genericControllerEvents[{ channel, event.controllerNumber }][timestamp] = midiValue;
++        EventSequence& sequence = destination[timestamp];
++        // Multiple articulations may share a channel. One lane contributes one value at a timestamp.
++        auto existing = std::find_if(sequence.begin(), sequence.end(), [&](const EventType& entry) {
++            const auto* generic = std::get_if<GenericMidiControllerEvent>(&entry);
++            return generic && generic->event.channel() == channel && generic->event.index() == event.controllerNumber;
++        });
++        midi::Event cc(Event::Opcode::ControlChange, Event::MessageType::ChannelVoice10);
++        cc.setChannel(channel);
++        cc.setIndex(event.controllerNumber);
++        cc.setData(midiValue);
++        if (existing != sequence.end()) {
++            *existing = GenericMidiControllerEvent { cc };
++        } else {
++            sequence.emplace_back(GenericMidiControllerEvent { cc });
++        }
++    }
++}
++
++std::vector<FluidSequencer::ControllerValue> FluidSequencer::genericControllerKeys() const
++{
++    std::vector<ControllerValue> result;
++    for (const auto& [key, _] : m_genericControllerEvents) {
++        result.push_back({ key.first, key.second, 0 });
++    }
++    return result;
++}
++
++std::vector<FluidSequencer::ControllerValue> FluidSequencer::currentGenericControllerValues() const
++{
++    std::vector<ControllerValue> result;
++    for (const auto& [key, curve] : m_genericControllerEvents) {
++        auto it = curve.upper_bound(mpe::timestamp_t(m_playbackPosition.raw()));
++        if (it != curve.begin()) {
++            --it;
++            result.push_back({ key.first, key.second, it->second });
++        }
++    }
++    return result;
++}
++
+ void FluidSequencer::addControlChange(EventSequenceMap& destination, const mpe::timestamp_t timestamp,
+                                       const int midiControlIdx, const channel_t channelIdx, const uint32_t value)
+ {
++    if (&destination == &m_mainStreamEvents && m_genericControllerEvents.count({ channelIdx, midiControlIdx })) {
++        return;
++    }
+     EventSequence& events = destination[timestamp];
+     for (const EventType& e : events) {
+-        const midi::Event& midiEvent = std::get<midi::Event>(e);
+-        if (midiEvent.opcode() == Event::Opcode::ControlChange
+-            && midiEvent.channel() == channelIdx
+-            && midiEvent.index() == static_cast<uint8_t>(midiControlIdx)
+-            && midiEvent.data() == value) {
++        const midi::Event* midiEvent = std::get_if<midi::Event>(&e);
++        if (midiEvent && midiEvent->opcode() == Event::Opcode::ControlChange
++            && midiEvent->channel() == channelIdx
++            && midiEvent->index() == static_cast<uint8_t>(midiControlIdx)
++            && midiEvent->data() == value) {
+             return;
+         }
+     }
+diff --git a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.h b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.h
+index 8e789fcbe..ee9dc949a 100644
+--- a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.h
++++ b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.h
+@@ -31,7 +31,11 @@
+ #include "soundmapping.h"
+ 
+ namespace muse::audio::synth {
+-class FluidSequencer : public engine::AbstractEventSequencer<midi::Event>
++struct GenericMidiControllerEvent {
++    midi::Event event;
++};
++
++class FluidSequencer : public engine::AbstractEventSequencer<midi::Event, GenericMidiControllerEvent>
+ {
+ public:
+     void init(const mpe::PlaybackSetupData& setupData, const std::optional<midi::Program>& programOverride, bool useDynamicEvents,
+@@ -51,6 +55,14 @@ public:
+     const ChannelMap& channels() const;
+     int lastStaff() const;
+ 
++    struct ControllerValue {
++        midi::channel_t channel = 0;
++        int controller = 0;
++        int value = 0;
++    };
++    std::vector<ControllerValue> currentGenericControllerValues() const;
++    std::vector<ControllerValue> genericControllerKeys() const;
++
+ private:
+     void updateMainStreamEvents(const mpe::PlaybackEventsMap& events, const mpe::DynamicAutomationLayers& dynamics) override;
+     void updateOffStreamEvents(const mpe::PlaybackEventsMap& events) override;
+@@ -63,6 +75,8 @@ private:
+                       const bool isMainStream);
+     void addPedalEvent(EventSequenceMap& destination, const mpe::ArticulationMeta& meta, const midi::channel_t channelIdx);
+     void addControlChangeEvent(EventSequenceMap& destination, const mpe::timestamp_t timestamp, const mpe::ControllerChangeEvent& event);
++    void addGenericControllerEvent(EventSequenceMap& destination, const mpe::timestamp_t timestamp,
++                                  const mpe::ControllerChangeEvent& event);
+     void addControlChange(EventSequenceMap& destination, const mpe::timestamp_t timestamp, const int midiControlIdx,
+                           const midi::channel_t channelIdx, const uint32_t value);
+     void addPitchCurve(EventSequenceMap& destination, const mpe::NoteEvent& noteEvent, const mpe::ArticulationMeta& artMeta,
+@@ -81,6 +95,7 @@ private:
+     mutable ChannelMap m_channels;
+     bool m_useDynamicEvents = false;
+     int m_lastStaff = -1;
++    std::map<std::pair<midi::channel_t, int>, std::map<mpe::timestamp_t, int> > m_genericControllerEvents;
+ };
+ }
+ 
+diff --git a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
+index 1b894922a..c40f7b509 100644
+--- a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
++++ b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
+@@ -148,6 +148,10 @@ Ret FluidSynth::init(const OutputSpec& spec)
+     m_sequencer.setOnOffStreamFlushed([this]() {
+         m_flushSoundRequested = true;
+     });
++    m_sequencer.setOnMainStreamFlushed([this]() {
++        resetGenericControllers(true);
++        m_flushSoundRequested = true;
++    });
+ 
+     LOGD() << "synth inited\n";
+     return true;
+@@ -170,6 +174,7 @@ void FluidSynth::doFlushSound()
+     }
+ 
+     fluid_synth_all_notes_off(m_fluid->synth, -1);
++    resetGenericControllers(false);
+ 
+     const int channelCount = static_cast<int>(m_sequencer.channels().channelCount());
+     for (int i = 0; i < channelCount; ++i) {
+@@ -177,6 +182,8 @@ void FluidSynth::doFlushSound()
+         setControllerValue(i, midi::SOSTENUTO_PEDAL_CONTROLLER, 0);
+         setPitchBend(i, 8192);
+     }
++    updateExpressionLevels();
++    updateGenericControllerValues();
+ 
+     if (m_midiOutPort && m_midiOutPort->isConnected()) {
+         // Send all notes off to connected midi ports.
+@@ -218,7 +225,7 @@ void FluidSynth::doFlushSound()
+     }
+ }
+ 
+-bool FluidSynth::handleEvent(const midi::Event& event)
++bool FluidSynth::handleEvent(const midi::Event& event, bool sendToMidiOut)
+ {
+     int ret = FLUID_OK;
+     switch (event.opcode()) {
+@@ -252,7 +259,7 @@ bool FluidSynth::handleEvent(const midi::Event& event)
+     }
+     }
+ 
+-    if (m_midiOutPort) {
++    if (sendToMidiOut && m_midiOutPort) {
+         if (STAFF_TO_MIDIOUT_CHANNEL && event.isChannelVoice()) {
+             int staff = m_sequencer.lastStaff();
+             if (staff >= 0) {
+@@ -278,7 +285,12 @@ void FluidSynth::setMode(const ProcessMode mode)
+     AbstractSynthesizer::setMode(mode);
+ 
+     m_sequencer.setActive(isModePlaying(mode));
++    if (!m_sequencer.isActive()) {
++        resetGenericControllers(false);
++        m_flushSoundRequested = true;
++    }
+     updateExpressionLevels();
++    updateGenericControllerValues();
+ }
+ 
+ void FluidSynth::setOutputSpec(const OutputSpec& spec)
+@@ -294,6 +306,7 @@ void FluidSynth::setOutputSpec(const OutputSpec& spec)
+     }
+ 
+     if (m_fluid->synth) {
++        resetGenericControllers(true);
+         delete_fluid_synth(m_fluid->synth);
+     }
+ 
+@@ -303,6 +316,10 @@ void FluidSynth::setOutputSpec(const OutputSpec& spec)
+     if (m_setupData.isValid()) {
+         setupSound(m_setupData);
+     }
++    captureGenericControllerDefaults();
++    updateExpressionLevels();
++    updateGenericControllerValues();
++    m_flushSoundRequested = true;
+ }
+ 
+ Ret FluidSynth::addSoundFonts(const std::vector<io::path_t>& sfonts)
+@@ -377,7 +394,9 @@ void FluidSynth::setupSound(const PlaybackSetupData& setupData)
+ 
+ void FluidSynth::setupEvents(const mpe::PlaybackData& playbackData)
+ {
++    resetGenericControllers(true);
+     m_sequencer.load(playbackData);
++    captureGenericControllerDefaults();
+ }
+ 
+ const mpe::PlaybackData& FluidSynth::playbackData() const
+@@ -406,9 +425,12 @@ void FluidSynth::setPlaybackPosition(const TimePosition& position)
+     // in fact, usecs_t (microseconds) is stored there.
+     const usecs_t usecs = muse::secs_to_usecs(position.time());
+     m_sequencer.setPlaybackPosition(msecs_t(usecs.raw()));
++    resetGenericControllers(false);
++    m_flushSoundRequested = true;
+ 
+     if (m_sequencer.isActive()) {
+         updateExpressionLevels();
++        updateGenericControllerValues();
+     }
+ }
+ 
+@@ -418,6 +440,7 @@ samples_t FluidSynth::process(float* buffer, samples_t samplesPerChannel)
+         return 0;
+     }
+ 
++    captureGenericControllerDefaults();
+     if (m_flushSoundRequested) {
+         doFlushSound();
+         m_flushSoundRequested = false;
+@@ -457,7 +480,11 @@ bool FluidSynth::processSequence(const FluidSequencer::EventSequence& sequence,
+     }
+ 
+     for (const FluidSequencer::EventType& event : sequence) {
+-        handleEvent(std::get<midi::Event>(event));
++        if (const auto* generic = std::get_if<GenericMidiControllerEvent>(&event)) {
++            handleEvent(generic->event, false);
++        } else {
++            handleEvent(std::get<midi::Event>(event));
++        }
+     }
+ 
+     fluid_synth_tune_notes(m_fluid->synth, 0, 0, m_tuning.size(), m_tuning.keys.data(), m_tuning.pitches.data(), true);
+@@ -510,6 +537,45 @@ void FluidSynth::updateExpressionLevels()
+     }
+ }
+ 
++void FluidSynth::captureGenericControllerDefaults()
++{
++    if (!m_fluid->synth) {
++        return;
++    }
++    for (const auto& controller : m_sequencer.genericControllerKeys()) {
++        const auto key = std::make_pair(controller.channel, controller.controller);
++        if (!m_genericControllerDefaults.count(key)) {
++            int value = 0;
++            if (fluid_synth_get_cc(m_fluid->synth, controller.channel, controller.controller, &value) == FLUID_OK) {
++                m_genericControllerDefaults.emplace(key, value);
++            }
++        }
++    }
++}
++
++void FluidSynth::resetGenericControllers(bool clearDefaults)
++{
++    if (m_fluid && m_fluid->synth) {
++        for (const auto& [key, value] : m_genericControllerDefaults) {
++            setControllerValue(key.first, key.second, value);
++        }
++    }
++    if (clearDefaults) {
++        m_genericControllerDefaults.clear();
++    }
++}
++
++void FluidSynth::updateGenericControllerValues()
++{
++    if (!m_fluid->synth || !m_sequencer.isActive()) {
++        return;
++    }
++    captureGenericControllerDefaults();
++    for (const auto& controller : m_sequencer.currentGenericControllerValues()) {
++        setControllerValue(controller.channel, controller.controller, controller.value);
++    }
++}
++
+ int FluidSynth::setControllerValue(int channel, int ctrl, int value)
+ {
+     int currentValue = 0;
+diff --git a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.h b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.h
+index 10fcf5c70..cf7be70a6 100644
+--- a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.h
++++ b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.h
+@@ -101,9 +101,12 @@ private:
+     void doFlushSound();
+ 
+     bool processSequence(const FluidSequencer::EventSequence& sequence, const samples_t samples, float* buffer);
+-    bool handleEvent(const midi::Event& event);
++    bool handleEvent(const midi::Event& event, bool sendToMidiOut = true);
+ 
+     void updateExpressionLevels();
++    void captureGenericControllerDefaults();
++    void resetGenericControllers(bool clearDefaults);
++    void updateGenericControllerValues();
+ 
+     int setControllerValue(int channel, int ctrl, int value);
+     int setPitchBend(int channel, int pitchBend);
+@@ -120,6 +123,7 @@ private:
+     KeyTuning m_tuning;
+ 
+     bool m_flushSoundRequested = false;
++    std::map<std::pair<midi::channel_t, int>, int> m_genericControllerDefaults;
+ };
+ 
+ using FluidSynthPtr = std::shared_ptr<FluidSynth>;
+diff --git a/framework/audio/engine/internal/synthesizers/fluidsynth/soundmapping.h b/framework/audio/engine/internal/synthesizers/fluidsynth/soundmapping.h
+index 4e77768b1..9568dd86f 100644
+--- a/framework/audio/engine/internal/synthesizers/fluidsynth/soundmapping.h
++++ b/framework/audio/engine/internal/synthesizers/fluidsynth/soundmapping.h
+@@ -1179,6 +1179,11 @@ struct ChannelMap {
+         return m_data;
+     }
+ 
++    mpe::layer_idx_t normalizedLayer(mpe::layer_idx_t layer) const
++    {
++        return m_usesStaffLayers ? layer : layer % mpe::MAX_VOICES;
++    }
++
+     async::Channel<midi::channel_t, midi::Program> channelAdded;
+ 
+ private:
+diff --git a/framework/audio/tests/CMakeLists.txt b/framework/audio/tests/CMakeLists.txt
+index c5c352770..d73d67e68 100644
+--- a/framework/audio/tests/CMakeLists.txt
++++ b/framework/audio/tests/CMakeLists.txt
+@@ -36,6 +36,7 @@ set(MODULE_TEST muse_audio_engine_tests)
+ set(MODULE_TEST_SRC
+     ${CMAKE_CURRENT_LIST_DIR}/fxchain_tests.cpp
+     ${CMAKE_CURRENT_LIST_DIR}/latency_tests.cpp
++    ${CMAKE_CURRENT_LIST_DIR}/fluidsequencer_tests.cpp
+ )
+ 
+ # The engine includes its headers relative to framework/audio.
+diff --git a/framework/audio/tests/fluidsequencer_tests.cpp b/framework/audio/tests/fluidsequencer_tests.cpp
+new file mode 100644
+index 000000000..abffe008c
+--- /dev/null
++++ b/framework/audio/tests/fluidsequencer_tests.cpp
+@@ -0,0 +1,229 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-only
++ * MuseScore-CLA-applies
++ */
++#include <gtest/gtest.h>
++
++#include "audio/engine/internal/synthesizers/fluidsynth/fluidsequencer.h"
++
++using namespace muse;
++using namespace muse::audio;
++using namespace muse::audio::synth;
++
++namespace {
++mpe::NoteEvent note(int staff = 0, int voice = 0, int timestamp = 1000000)
++{
++    return mpe::NoteEvent(timestamp, 500000, voice, staff, 0,
++                          mpe::dynamicLevelFromType(mpe::DynamicType::Natural), {}, 2.0);
++}
++
++mpe::ControllerChangeEvent controller(int cc, float value, int staff = 0, int voice = 0)
++{
++    mpe::ControllerChangeEvent result;
++    result.type = mpe::ControllerChangeEvent::GenericMidiController;
++    result.controllerNumber = cc;
++    result.val = value;
++    result.layerIdx = mpe::makeLayerIdx(staff, voice);
++    return result;
++}
++
++mpe::PlaybackData data(bool singleNoteDynamics = false)
++{
++    mpe::PlaybackData result;
++    result.setupData = { mpe::SoundId::Piano, mpe::SoundCategory::Keyboards, {}, singleNoteDynamics };
++    result.originEvents[1000000].emplace_back(note());
++    return result;
++}
++
++void load(FluidSequencer& sequencer, const mpe::PlaybackData& playback)
++{
++    sequencer.init(playback.setupData, std::nullopt, playback.setupData.supportsSingleNoteDynamics, 16);
++    sequencer.load(playback);
++    sequencer.setActive(true);
++}
++}
++
++TEST(FluidSequencerControllers, InitialPointReachesFutureNotes)
++{
++    auto playback = data();
++    playback.originEvents[0].emplace_back(controller(7, 0.25f));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    const auto values = sequencer.currentGenericControllerValues();
++    ASSERT_EQ(values.size(), 1);
++    EXPECT_EQ(values[0].channel, 0);
++    EXPECT_EQ(values[0].controller, 7);
++    EXPECT_EQ(values[0].value, 32);
++    const auto sequences = sequencer.movePlaybackForward(msecs_t(1));
++    ASSERT_EQ(sequences.at(msecs_t(0)).size(), 1);
++    EXPECT_TRUE(std::holds_alternative<GenericMidiControllerEvent>(sequences.at(msecs_t(0)).front()));
++}
++
++TEST(FluidSequencerControllers, ProtectedCommandsAreRejected)
++{
++    auto playback = data();
++    const int protectedControllers[] = { 0, 6, 32, 38, 84, 88, 96, 97, 98, 99, 100, 101, 120, 121, 122, 123, 124, 125, 126, 127 };
++    for (int cc : protectedControllers) playback.originEvents[0].emplace_back(controller(cc, 1.f));
++    playback.originEvents[0].emplace_back(controller(-1, 1.f));
++    playback.originEvents[0].emplace_back(controller(128, 1.f));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    EXPECT_TRUE(sequencer.genericControllerKeys().empty());
++}
++
++TEST(FluidSequencerControllers, InvalidValuesAndUnknownLayersAreRejected)
++{
++    auto playback = data(true);
++    playback.originEvents[0].emplace_back(controller(7, -0.01f));
++    playback.originEvents[0].emplace_back(controller(10, 1.01f));
++    playback.originEvents[0].emplace_back(controller(11, 0.5f, 99, 3));
++    playback.originEvents[-1].emplace_back(controller(64, 1.f));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    EXPECT_TRUE(sequencer.genericControllerKeys().empty());
++}
++
++TEST(FluidSequencerControllers, PermittedByteControllersKeepTheirNumbers)
++{
++    auto playback = data();
++    for (int cc = 0; cc < 128; ++cc) playback.originEvents[0].emplace_back(controller(cc, 0.5f));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    const auto values = sequencer.currentGenericControllerValues();
++    ASSERT_EQ(values.size(), 108);
++    for (const auto& value : values) {
++        EXPECT_TRUE(mpe::isSafeMidiController(value.controller));
++        EXPECT_EQ(value.value, 64);
++    }
++}
++
++TEST(FluidSequencerControllers, StaffAndVoiceChannelsRemainScoped)
++{
++    auto playback = data(true);
++    playback.originEvents[1000000].emplace_back(note(1, 0));
++    playback.originEvents[1000000].emplace_back(note(1, 1));
++    playback.originEvents[0].emplace_back(controller(10, 1.f, 1, 1));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    const auto values = sequencer.currentGenericControllerValues();
++    ASSERT_EQ(values.size(), 1);
++    const auto& mapping = sequencer.channels().data().at(mpe::makeLayerIdx(1, 1));
++    EXPECT_EQ(values[0].channel, mapping.begin()->second.first);
++    EXPECT_NE(values[0].channel, sequencer.channels().data().at(mpe::makeLayerIdx(0, 0)).begin()->second.first);
++}
++
++TEST(FluidSequencerControllers, NonDynamicSoundNormalizesStaffLayers)
++{
++    auto playback = data();
++    playback.originEvents[0].emplace_back(controller(10, 1.f, 12, 0));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    ASSERT_EQ(sequencer.currentGenericControllerValues().size(), 1);
++    EXPECT_EQ(sequencer.currentGenericControllerValues()[0].channel, 0);
++}
++
++TEST(FluidSequencerControllers, SeekRestoresLatestStateWithoutFuturePoints)
++{
++    auto playback = data();
++    playback.originEvents[0].emplace_back(controller(64, 0.f));
++    playback.originEvents[200000].emplace_back(controller(64, 1.f));
++    playback.originEvents[800000].emplace_back(controller(64, 0.f));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    sequencer.setPlaybackPosition(msecs_t(500000));
++    ASSERT_EQ(sequencer.currentGenericControllerValues().size(), 1);
++    EXPECT_EQ(sequencer.currentGenericControllerValues()[0].value, 127);
++    sequencer.setPlaybackPosition(msecs_t(100000));
++    EXPECT_EQ(sequencer.currentGenericControllerValues()[0].value, 0);
++}
++
++TEST(FluidSequencerControllers, OffstreamCannotApplyGenericControllers)
++{
++    auto playback = data();
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    mpe::PlaybackEventsMap preview;
++    preview[0].emplace_back(controller(7, 0.f));
++    playback.offStream.send(preview, true);
++    sequencer.setActive(false);
++    const auto sequences = sequencer.movePlaybackForward(msecs_t(1000));
++    for (const auto& [_, events] : sequences) {
++        for (const auto& event : events) EXPECT_FALSE(std::holds_alternative<GenericMidiControllerEvent>(event));
++    }
++}
++
++TEST(FluidSequencerControllers, ReloadRemovesOldControllerState)
++{
++    auto playback = data();
++    playback.originEvents[0].emplace_back(controller(7, 0.f));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    ASSERT_EQ(sequencer.genericControllerKeys().size(), 1);
++    playback.originEvents[0].clear();
++    playback.mainStream.send(playback.originEvents, {});
++    EXPECT_TRUE(sequencer.genericControllerKeys().empty());
++}
++
++TEST(FluidSequencerControllers, SameTimestampDeduplicatesLayerAliases)
++{
++    auto playback = data();
++    playback.originEvents[0].emplace_back(controller(7, 0.25f, 0));
++    playback.originEvents[0].emplace_back(controller(7, 0.75f, 1));
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    const auto sequences = sequencer.movePlaybackForward(msecs_t(1));
++    ASSERT_EQ(sequences.at(msecs_t(0)).size(), 1);
++    EXPECT_EQ(sequencer.currentGenericControllerValues()[0].value, 95);
++}
++
++TEST(FluidSequencerControllers, GenericPedalOverridesNotationPedal)
++{
++    for (const int cc : { 64, 66 }) {
++        auto playback = data();
++        mpe::ArrangementContext arrangement;
++        arrangement.actualTimestamp = 100000;
++        arrangement.actualDuration = 500000;
++        mpe::ExpressionContext expression;
++        expression.nominalDynamicLevel = mpe::dynamicLevelFromType(mpe::DynamicType::Natural);
++        const auto type = cc == 64 ? *SUSTAIN_PEDAL_CC_SUPPORTED_TYPES.begin() : *SOSTENUTO_PEDAL_CC_SUPPORTED_TYPES.begin();
++        mpe::ArticulationAppliedData articulation;
++        articulation.meta.type = type;
++        articulation.meta.timestamp = 100000;
++        articulation.meta.overallDuration = 500000;
++        expression.articulations[type] = articulation;
++        playback.originEvents[100000].emplace_back(mpe::NoteEvent(std::move(arrangement), {}, std::move(expression)));
++        playback.originEvents[0].emplace_back(controller(cc, 0.f));
++        FluidSequencer sequencer;
++        load(sequencer, playback);
++        const auto sequences = sequencer.movePlaybackForward(msecs_t(2000000));
++        int genericCount = 0;
++        for (const auto& [_, events] : sequences) {
++            for (const auto& event : events) {
++                if (const auto* native = std::get_if<midi::Event>(&event)) {
++                    EXPECT_FALSE(native->opcode() == midi::Event::Opcode::ControlChange && native->index() == cc);
++                } else if (std::get<GenericMidiControllerEvent>(event).event.index() == cc) {
++                    ++genericCount;
++                }
++            }
++        }
++        EXPECT_EQ(genericCount, 1);
++    }
++}
++
++TEST(FluidSequencerControllers, GenericExpressionOverridesNotationDynamics)
++{
++    auto playback = data(true);
++    playback.originEvents[0].emplace_back(controller(11, 0.25f));
++    playback.dynamics[0][0].outValue = 0.7;
++    playback.dynamics[0][500000].outValue = 0.9;
++    FluidSequencer sequencer;
++    load(sequencer, playback);
++    const auto sequences = sequencer.movePlaybackForward(msecs_t(1000000));
++    for (const auto& [_, events] : sequences) {
++        for (const auto& event : events) {
++            if (const auto* native = std::get_if<midi::Event>(&event)) {
++                EXPECT_FALSE(native->opcode() == midi::Event::Opcode::ControlChange && native->index() == 11);
++            }
++        }
++    }
++}
+diff --git a/framework/audio/tests/rpcpacker_tests.cpp b/framework/audio/tests/rpcpacker_tests.cpp
+index 2a4bb8a3e..7ad0c4b32 100644
+--- a/framework/audio/tests/rpcpacker_tests.cpp
++++ b/framework/audio/tests/rpcpacker_tests.cpp
+@@ -696,6 +696,23 @@ TEST_F(Audio_RpcPackerTests, MPE_ExpressionContext)
+ // void pack_custom(muse::msgpack::Packer& p, const muse::mpe::PlaybackEvent& value);
+ // void unpack_custom(muse::msgpack::UnPacker& p, muse::mpe::PlaybackEvent& value);
+ 
++TEST_F(Audio_RpcPackerTests, GenericMidiControllerEvent)
++{
++    for (int controller : { 7, 10, 11, 64 }) {
++        mpe::ControllerChangeEvent event;
++        event.type = mpe::ControllerChangeEvent::GenericMidiController;
++        event.val = 0.5f;
++        event.layerIdx = mpe::makeLayerIdx(2, 3);
++        event.controllerNumber = controller;
++        mpe::PlaybackEvent original = event;
++        ByteArray bytes = rpc::RpcPacker::pack(original);
++        mpe::PlaybackEvent restored;
++        ASSERT_TRUE(rpc::RpcPacker::unpack(bytes, restored));
++        EXPECT_TRUE(original == restored);
++        EXPECT_EQ(std::get<mpe::ControllerChangeEvent>(restored).controllerNumber, controller);
++    }
++}
++
+ TEST_F(Audio_RpcPackerTests, MPE_PlaybackEvent)
+ {
+     // NoteEvent
+@@ -794,11 +811,13 @@ TEST_F(Audio_RpcPackerTests, MPE_PlaybackEvent)
+         event.type = mpe::ControllerChangeEvent::Type::Modulation;
+         event.val = 0.4f;
+         event.layerIdx = 2;
++        event.controllerNumber = 10;
+ 
+         KNOWN_FIELDS(event,
+                      event.type,
+                      event.val,
+-                     event.layerIdx);
++                     event.layerIdx,
++                     event.controllerNumber);
+ 
+         mpe::PlaybackEvent origin = event;
+ 
+diff --git a/framework/mpe/events.h b/framework/mpe/events.h
+index 5ceb30e60..ee6005653 100644
+--- a/framework/mpe/events.h
++++ b/framework/mpe/events.h
+@@ -267,6 +267,7 @@ struct ControllerChangeEvent {
+         Modulation,
+         SustainPedalOnOff,
+         PitchBend,
++        GenericMidiController,
+     };
+ 
+     using Value = muse::number_t<float>;
+@@ -274,13 +275,22 @@ struct ControllerChangeEvent {
+     Type type = Undefined;
+     Value val; // [0;1]
+     layer_idx_t layerIdx = 0;
++    int controllerNumber = -1;
+ 
+     bool operator==(const ControllerChangeEvent& e) const
+     {
+-        return type == e.type && val == e.val && layerIdx == e.layerIdx;
++        return type == e.type && val == e.val && layerIdx == e.layerIdx && controllerNumber == e.controllerNumber;
+     }
+ };
+ 
++// Bank, parameter, note-state and channel-mode commands need ordered MIDI sequences.
++constexpr bool isSafeMidiController(int controller)
++{
++    return controller >= 0 && controller < 120 && controller != 0 && controller != 32
++           && controller != 6 && controller != 38 && controller != 84 && controller != 88
++           && (controller < 96 || controller > 101);
++}
++
+ using ControllerChangeEventList = std::vector<ControllerChangeEvent>;
+ 
+ struct TextArticulationEvent {

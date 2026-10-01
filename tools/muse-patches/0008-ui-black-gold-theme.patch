@@ -1,0 +1,45 @@
+diff --git a/framework/ui/internal/themeconverter.cpp b/framework/ui/internal/themeconverter.cpp
+index 31a1e1276..488764065 100644
+--- a/framework/ui/internal/themeconverter.cpp
++++ b/framework/ui/internal/themeconverter.cpp
+@@ -83,6 +83,9 @@ static QString titleForTheme(const ThemeInfo& theme)
+     } else if (theme.codeKey == HIGH_CONTRAST_BLACK_THEME_CODE) {
+         //: The name of the high contrast dark ui theme
+         return muse::qtrc("ui", "Black");
++    } else if (theme.codeKey == BLACK_GOLD_THEME_CODE) {
++        //: The name of the dark ui theme with gold accents
++        return muse::qtrc("ui", "Black & Gold");
+     }
+ 
+     return QString::fromStdString(theme.title);
+diff --git a/framework/ui/uitypes.h b/framework/ui/uitypes.h
+index d8f2bbde5..55c20de7b 100644
+--- a/framework/ui/uitypes.h
++++ b/framework/ui/uitypes.h
+@@ -55,6 +55,7 @@ static const ThemeCode LIGHT_THEME_CODE("light");
+ static const ThemeCode DARK_THEME_CODE("dark");
+ static const ThemeCode HIGH_CONTRAST_WHITE_THEME_CODE("high_contrast_white");
+ static const ThemeCode HIGH_CONTRAST_BLACK_THEME_CODE("high_contrast_black");
++static const ThemeCode BLACK_GOLD_THEME_CODE("black_gold");
+ 
+ inline std::vector<ThemeCode> allStandardThemeCodes()
+ {
+@@ -62,14 +63,16 @@ inline std::vector<ThemeCode> allStandardThemeCodes()
+         LIGHT_THEME_CODE,
+         DARK_THEME_CODE,
+         HIGH_CONTRAST_WHITE_THEME_CODE,
+-        HIGH_CONTRAST_BLACK_THEME_CODE
++        HIGH_CONTRAST_BLACK_THEME_CODE,
++        BLACK_GOLD_THEME_CODE
+     };
+ }
+ 
+ inline bool isDarkTheme(const ThemeCode& themeCode)
+ {
+     return themeCode == DARK_THEME_CODE
+-           || themeCode == HIGH_CONTRAST_BLACK_THEME_CODE;
++           || themeCode == HIGH_CONTRAST_BLACK_THEME_CODE
++           || themeCode == BLACK_GOLD_THEME_CODE;
+ }
+ 
+ inline bool isHighContrastTheme(const ThemeCode& themeCode)

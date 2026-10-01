@@ -1,0 +1,105 @@
+diff --git a/framework/diagnostics/internal/crashhandler/crashhandler.cpp b/framework/diagnostics/internal/crashhandler/crashhandler.cpp
+index 7068db331..6b0e34d2b 100644
+--- a/framework/diagnostics/internal/crashhandler/crashhandler.cpp
++++ b/framework/diagnostics/internal/crashhandler/crashhandler.cpp
+@@ -30,6 +30,8 @@
+ 
+ #include "crashhandler.h"
+ 
++#include <memory>
++
+ #include <QDir>
+ 
+ #include "log.h"
+@@ -44,6 +46,11 @@ CrashHandler::~CrashHandler()
+ 
+ bool CrashHandler::start(const muse::io::path_t& handlerFilePath)
+ {
++    if (m_client) {
++        LOGW() << "Crash handler has already been initialized";
++        return false;
++    }
++
+     if (!fileSystem()->exists(handlerFilePath)) {
+         LOGE() << "crash handler not exists, path: " << handlerFilePath;
+         return false;
+@@ -78,11 +85,6 @@ bool CrashHandler::start(const muse::io::path_t& handlerFilePath)
+     arguments.push_back("--no-rate-limit");
+     arguments.push_back("--no-upload-gzip");
+ 
+-    std::unique_ptr<CrashReportDatabase> db = crashpad::CrashReportDatabase::Initialize(database);
+-    if (db != nullptr && db->GetSettings() != nullptr) {
+-        db->GetSettings()->SetUploadsEnabled(true);
+-    }
+-
+     removePendingLockFiles(dumpConfig.directory);
+ 
+     CrashpadInfo::GetCrashpadInfo()->set_system_crash_reporter_forwarding(
+@@ -96,8 +98,15 @@ bool CrashHandler::start(const muse::io::path_t& handlerFilePath)
+         LOGD() << "not allowed dump upload";
+     }
+ 
+-    m_client = new CrashpadClient();
+-    bool success = m_client->StartHandler(
++    std::unique_ptr<CrashReportDatabase> db = crashpad::CrashReportDatabase::Initialize(database);
++    if (db == nullptr || db->GetSettings() == nullptr
++        || !db->GetSettings()->SetUploadsEnabled(!serverUrl.empty())) {
++        LOGE() << "Could not initialize the local crash report database";
++        return false;
++    }
++
++    auto client = std::make_unique<CrashpadClient>();
++    bool success = client->StartHandler(
+         handler,
+         database,
+         database,
+@@ -108,6 +117,10 @@ bool CrashHandler::start(const muse::io::path_t& handlerFilePath)
+         false // asynchronous_start
+         );
+ 
++    if (success) {
++        m_client = client.release();
++    }
++
+     return success;
+ }
+ 
+diff --git a/framework/diagnostics/internal/diagnosticsconfiguration.cpp b/framework/diagnostics/internal/diagnosticsconfiguration.cpp
+index fbf06a231..ea2d507f3 100644
+--- a/framework/diagnostics/internal/diagnosticsconfiguration.cpp
++++ b/framework/diagnostics/internal/diagnosticsconfiguration.cpp
+@@ -31,7 +31,7 @@ static const Settings::Key SHOULD_WARN_BEFORE_SAVING_DIAGNOSTIC_FILES("diagnosti
+ 
+ void DiagnosticsConfiguration::init()
+ {
+-    settings()->setDefaultValue(IS_DUMP_UPLOAD_ALLOWED, Val(true));
++    settings()->setDefaultValue(IS_DUMP_UPLOAD_ALLOWED, Val(false));
+     settings()->setDefaultValue(SHOULD_WARN_BEFORE_SAVING_DIAGNOSTIC_FILES, Val(true));
+ }
+ 
+diff --git a/framework/languages/internal/languagesconfiguration.cpp b/framework/languages/internal/languagesconfiguration.cpp
+index 67a3278bd..016891b84 100644
+--- a/framework/languages/internal/languagesconfiguration.cpp
++++ b/framework/languages/internal/languagesconfiguration.cpp
+@@ -39,7 +39,7 @@ void LanguagesConfiguration::init()
+ {
+     m_config = ConfigReader::read(":/configs/languages.cfg");
+ 
+-    settings()->setDefaultValue(LANGUAGE_KEY, Val(SYSTEM_LANGUAGE_CODE.toStdString()));
++    settings()->setDefaultValue(LANGUAGE_KEY, Val("en_US"));
+     settings()->valueChanged(LANGUAGE_KEY).onReceive(nullptr, [this](const Val& val) {
+         m_currentLanguageCodeChanged.send(val.toQString());
+     });
+diff --git a/framework/ui/internal/uiconfiguration.cpp b/framework/ui/internal/uiconfiguration.cpp
+index e004ebc31..cac1cd54d 100644
+--- a/framework/ui/internal/uiconfiguration.cpp
++++ b/framework/ui/internal/uiconfiguration.cpp
+@@ -90,7 +90,7 @@ void UiConfiguration::init()
+ {
+     m_config = ConfigReader::read(":/configs/ui.cfg");
+ 
+-    settings()->setDefaultValue(UI_CURRENT_THEME_CODE_KEY, Val(LIGHT_THEME_CODE));
++    settings()->setDefaultValue(UI_CURRENT_THEME_CODE_KEY, Val(BLACK_GOLD_THEME_CODE));
+     settings()->setDefaultValue(UI_CUSTOM_COLORS_KEY, Val(readLegacyCustomColors()));
+     settings()->setDefaultValue(UI_FOLLOW_SYSTEM_THEME_KEY, Val(false));
+     settings()->setDefaultValue(UI_FONT_FAMILY_KEY, Val(defaultFontFamily()));

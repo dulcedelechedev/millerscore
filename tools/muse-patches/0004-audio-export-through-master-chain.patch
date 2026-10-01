@@ -1,0 +1,34 @@
+diff --git a/framework/audio/engine/internal/audiocontext.cpp b/framework/audio/engine/internal/audiocontext.cpp
+index ef06efbee..511595c1a 100644
+--- a/framework/audio/engine/internal/audiocontext.cpp
++++ b/framework/audio/engine/internal/audiocontext.cpp
+@@ -69,7 +69,7 @@ Ret AudioContext::init()
+     masterControlNode->setPlayheadPosition(std::static_pointer_cast<IPlayheadPosition>(m_player));
+ 
+     m_masterTrack.chain->setSource(m_mixer);
+-    m_masterTrack.chain->setFxChain(nullptr); //!< NOTE Master fx chain is not exists yet
++    m_masterTrack.chain->setFxChain(nullptr); //!< NOTE Set later from the master fx params
+     m_masterTrack.chain->setControl(masterControlNode);
+     m_masterTrack.chain->setSignal(std::make_shared<SignalNode>());
+     m_masterTrack.chain->rebuild();
+@@ -912,7 +912,10 @@ Ret AudioContext::doSaveSoundTrack(io::IODevice& dstDevice, const SoundTrackForm
+     using namespace muse::audio::soundtrack;
+ 
+     const secs_t totalDuration = m_player->duration();
+-    auto writer = std::make_shared<SoundTrackWriter>(dstDevice, format, totalDuration, m_mixer);
++    //! NOTE Render from the playhead node, the same root real-time playback uses: the
++    // exported file must include the master inserts, volume/pan and mute, and the
++    // playhead must advance so automation and tempo-synced effects follow the audio.
++    auto writer = std::make_shared<SoundTrackWriter>(dstDevice, format, totalDuration, m_playheadNode);
+ 
+     writer->progress().progressChanged().onReceive(this, [this](int64_t current, int64_t total, std::string /*title*/) {
+         m_saveSoundTracksProgress.progress.send(current, total, SaveSoundTrackStage::WritingSoundTrack);
+@@ -933,7 +936,7 @@ Ret AudioContext::doSaveSoundTrack(io::IODevice& dstDevice, const SoundTrackForm
+     Operation func = [this, writer, &ret]() {
+         setMode(ProcessMode::PlayingOffline);
+         ret = writer->write();
+-        m_mixer->setOutputSpec(outputSpec());
++        m_playheadNode->setOutputSpec(outputSpec());
+         setMode(ProcessMode::Idle);
+         m_player->seek(TimePosition::zero(m_outputSpec.sampleRate));
+     };

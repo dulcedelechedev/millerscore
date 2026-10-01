@@ -1,0 +1,386 @@
+diff --git a/framework/audio/engine/CMakeLists.txt b/framework/audio/engine/CMakeLists.txt
+index 8ca647a36..0af9901f6 100644
+--- a/framework/audio/engine/CMakeLists.txt
++++ b/framework/audio/engine/CMakeLists.txt
+@@ -88,6 +88,8 @@ else()
+         internal/nodes/mixernode.h
+         internal/nodes/eventaudionode.cpp
+         internal/nodes/eventaudionode.h
++        internal/nodes/pcmaudionode.cpp
++        internal/nodes/pcmaudionode.h
+         internal/nodes/fxnode.cpp
+         internal/nodes/fxnode.h
+         internal/nodes/fxchain.cpp
+diff --git a/framework/audio/engine/internal/audiocontext.cpp b/framework/audio/engine/internal/audiocontext.cpp
+index 511595c1a..b2bcaa978 100644
+--- a/framework/audio/engine/internal/audiocontext.cpp
++++ b/framework/audio/engine/internal/audiocontext.cpp
+@@ -26,6 +26,7 @@
+ #include "audio/common/audioutils.h"
+ 
+ #include "nodes/trackchain.h"
++#include "nodes/pcmaudionode.h"
+ 
+ #include "contextplayer.h"
+ 
+@@ -156,18 +157,46 @@ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackNam
+         return RetType::make_ret(Err::InvalidAudioFilePath);
+     }
+ 
++    // An audio track: prepared audio (see PcmAudioNode) through the same chain as a score track
++    auto source = std::make_shared<PcmAudioNode>(playbackData);
++    if (!source->isValid()) {
++        return RetType::make_ret(Err::InvalidAudioFilePath);
++    }
++    // As AudioFactory::makeEventSource does: the chain does not pass its spec down to the source
++    source->setOutputSpec(outputSpec());
++
+     TrackId trackId = newTrackId();
++
++    AutomationControlNodePtr controlNode = std::make_shared<AutomationControlNode>();
++    controlNode->setPlayheadPosition(std::static_pointer_cast<IPlayheadPosition>(m_player));
++
++    TrackChainPtr trackChain = std::make_shared<TrackChain>(trackId, trackName);
++    trackChain->setOutputSpec(outputSpec());
++    trackChain->setMode(mode());
++    trackChain->setSource(source);
++    trackChain->setFxChain(nullptr); // will be added later
++    trackChain->setControl(controlNode);
++    trackChain->setSignal(std::make_shared<SignalNode>());
++    trackChain->rebuild();
++
++    Ret ret = m_mixer->addTrack(trackChain, params.auxSends);
++    if (!ret) {
++        return RetType::make_ret(ret);
++    }
++
+     Track track;
+     track.type = TrackType::Sound_track;
+     track.id = trackId;
+     track.name = trackName;
+     track.params = params;
+-    //! NOT IMPLEMENTED YET
+-    // track.chain = ...
++    track.chain = trackChain;
++
++    onFxChainParamsChanged(track, params.fxChain);
++    onControlParamsChanged(track, params.control);
+ 
+     doAddTrack(track);
+ 
+-    return RetType::make_ok(trackId, { });
++    return RetType::make_ok(trackId, track.params);
+ }
+ 
+ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackName,
+diff --git a/framework/audio/engine/internal/nodes/pcmaudionode.cpp b/framework/audio/engine/internal/nodes/pcmaudionode.cpp
+new file mode 100644
+index 000000000..222da1759
+--- /dev/null
++++ b/framework/audio/engine/internal/nodes/pcmaudionode.cpp
+@@ -0,0 +1,214 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-only
++ * MuseScore-Studio-CLA-applies
++ *
++ * MuseScore Studio
++ * Music Composition & Notation
++ *
++ * Copyright (C) 2026 MuseScore Limited and others
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 3 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include "pcmaudionode.h"
++
++#include <algorithm>
++#include <cmath>
++#include <cstring>
++
++#include <QtGlobal>
++
++#include "audio/common/audiosanitizer.h"
++
++#include "log.h"
++
++using namespace muse;
++using namespace muse::audio;
++using namespace muse::audio::engine;
++
++namespace {
++constexpr size_t HEADER_SIZE = 16;
++
++uint32_t readU32(const uint8_t* p)
++{
++    return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
++}
++}
++
++PcmAudioNode::PcmAudioNode(io::IODevice* data)
++{
++    if (!data) {
++        return;
++    }
++    data->seek(0);
++    const ByteArray bytes = data->readAll();
++    if (bytes.size() < HEADER_SIZE || std::memcmp(bytes.constData(), "MSPC", 4) != 0 || readU32(bytes.constData() + 4) != 1) {
++        LOGE() << "not an MSPC audio buffer";
++        return;
++    }
++    m_sourceRate = readU32(bytes.constData() + 8);
++    m_sourceChannels = audioch_t(readU32(bytes.constData() + 12));
++    if (m_sourceRate == 0 || m_sourceChannels == 0) {
++        return;
++    }
++    const size_t floats = (bytes.size() - HEADER_SIZE) / sizeof(float);
++    m_source.resize(floats - floats % m_sourceChannels);
++    std::memcpy(m_source.data(), bytes.constData() + HEADER_SIZE, m_source.size() * sizeof(float));
++}
++
++bool PcmAudioNode::isValid() const
++{
++    return m_sourceRate > 0 && m_sourceChannels > 0;
++}
++
++void PcmAudioNode::onOutputSpecChanged(const OutputSpec& spec)
++{
++    ONLY_AUDIO_ENGINE_THREAD;
++    if (spec.sampleRate == m_outputRate && spec.audioChannelCount == m_outputChannels) {
++        return;
++    }
++    m_outputRate = spec.sampleRate;
++    m_outputChannels = spec.audioChannelCount;
++    convertToOutput();
++    if (m_position.isValid()) {
++        m_frame = int64_t(std::llround(double(m_position.time()) * m_outputRate));
++    }
++}
++
++//! Linear-interpolation resampling and channel mapping (mono is copied to every channel,
++//! extra source channels are folded into the last output channel)
++void PcmAudioNode::convertToOutput()
++{
++    m_output.clear();
++    if (!isValid() || m_outputRate == 0 || m_outputChannels == 0) {
++        return;
++    }
++    const size_t sourceFrames = m_source.size() / m_sourceChannels;
++    const double ratio = double(m_sourceRate) / double(m_outputRate);
++    const size_t outputFrames = size_t(std::floor(sourceFrames / ratio));
++    m_output.assign(outputFrames * m_outputChannels, 0.f);
++
++    for (size_t frame = 0; frame < outputFrames; ++frame) {
++        const double position = frame * ratio;
++        const size_t index = size_t(position);
++        const size_t next = std::min(index + 1, sourceFrames - 1);
++        const float fraction = float(position - double(index));
++        for (audioch_t channel = 0; channel < m_outputChannels; ++channel) {
++            const audioch_t sourceChannel = m_sourceChannels == 1 ? 0 : std::min<audioch_t>(channel, m_sourceChannels - 1);
++            const float a = m_source[index * m_sourceChannels + sourceChannel];
++            const float b = m_source[next * m_sourceChannels + sourceChannel];
++            m_output[frame * m_outputChannels + channel] = a + (b - a) * fraction;
++        }
++    }
++}
++
++void PcmAudioNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
++{
++    ONLY_AUDIO_PROC_THREAD;
++    const audioch_t channels = outputSpec().audioChannelCount;
++    const size_t total = size_t(samplesPerChannel) * channels;
++    // The mixer also processes tracks while the transport is stopped: stay silent and keep the position
++    if (mode() != ProcessMode::Playing && mode() != ProcessMode::PlayingOffline) {
++        std::fill(buffer, buffer + total, 0.f);
++        return;
++    }
++    if (channels != m_outputChannels || m_output.empty()) {
++        std::fill(buffer, buffer + total, 0.f);
++        m_frame += samplesPerChannel;
++        return;
++    }
++
++    const int64_t available = int64_t(m_output.size() / channels);
++    for (samples_t sample = 0; sample < samplesPerChannel; ++sample) {
++        const int64_t frame = m_frame + sample;
++        float* out = buffer + size_t(sample) * channels;
++        if (frame < 0 || frame >= available) {
++            std::fill(out, out + channels, 0.f);
++        } else {
++            std::memcpy(out, m_output.data() + size_t(frame) * channels, channels * sizeof(float));
++        }
++    }
++
++    // MILLERSCORE_AUDIO_TRACE=1: the peak delivered, about once a second (for checking without listening)
++    static const bool trace = qEnvironmentVariableIntValue("MILLERSCORE_AUDIO_TRACE") != 0;
++    if (trace) {
++        for (size_t index = 0; index < total; ++index) {
++            m_tracePeak = std::max(m_tracePeak, std::abs(buffer[index]));
++        }
++        m_traceFrames += samplesPerChannel;
++        if (m_traceFrames >= int64_t(m_outputRate)) {
++            LOGI() << "audio track at " << double(m_frame) / m_outputRate << " s: peak " << m_tracePeak;
++            m_tracePeak = 0.f;
++            m_traceFrames = 0;
++        }
++    }
++    m_frame += samplesPerChannel;
++}
++
++void PcmAudioNode::seek(const TimePosition& position, const bool)
++{
++    ONLY_AUDIO_ENGINE_THREAD;
++    m_position = position;
++    const sample_rate_t rate = m_outputRate > 0 ? m_outputRate : position.sampleRate();
++    m_frame = int64_t(std::llround(double(position.time()) * rate));
++}
++
++void PcmAudioNode::flush()
++{
++}
++
++const AudioInputParams& PcmAudioNode::inputParams() const
++{
++    return m_params;
++}
++
++void PcmAudioNode::applyInputParams(const AudioInputParams&)
++{
++}
++
++async::Channel<AudioInputParams> PcmAudioNode::inputParamsChanged() const
++{
++    return m_paramsChanges;
++}
++
++void PcmAudioNode::prepareToPlay()
++{
++}
++
++bool PcmAudioNode::readyToPlay() const
++{
++    return true;
++}
++
++async::Notification PcmAudioNode::readyToPlayChanged() const
++{
++    return m_readyToPlayChanged;
++}
++
++bool PcmAudioNode::hasPendingChunks() const
++{
++    return false;
++}
++
++void PcmAudioNode::processInput()
++{
++}
++
++InputProcessingProgress PcmAudioNode::inputProcessingProgress() const
++{
++    return {};
++}
++
++void PcmAudioNode::clearCache()
++{
++}
+diff --git a/framework/audio/engine/internal/nodes/pcmaudionode.h b/framework/audio/engine/internal/nodes/pcmaudionode.h
+new file mode 100644
+index 000000000..7977e6a5c
+--- /dev/null
++++ b/framework/audio/engine/internal/nodes/pcmaudionode.h
+@@ -0,0 +1,85 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-only
++ * MuseScore-Studio-CLA-applies
++ *
++ * MuseScore Studio
++ * Music Composition & Notation
++ *
++ * Copyright (C) 2026 MuseScore Limited and others
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 3 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <vector>
++
++#include "audiosourcenode.h"
++
++#include "global/io/iodevice.h"
++
++namespace muse::audio::engine {
++//! Plays prepared audio (an audio track: clips already decoded and placed on the timeline).
++//! The device holds a header, "MSPC", then little-endian uint32 version (1), sample rate and
++//! channel count, then interleaved float32 frames starting at time zero. The audio is converted
++//! to the engine's rate and channels once, then read at the playhead position.
++class PcmAudioNode : public AudioSourceNode
++{
++public:
++    explicit PcmAudioNode(io::IODevice* data);
++
++    bool isValid() const;
++
++    void seek(const TimePosition& position, const bool flushSound = true) override;
++    void flush() override;
++
++    const AudioInputParams& inputParams() const override;
++    void applyInputParams(const AudioInputParams& requiredParams) override;
++    async::Channel<AudioInputParams> inputParamsChanged() const override;
++
++    void prepareToPlay() override;
++    bool readyToPlay() const override;
++    async::Notification readyToPlayChanged() const override;
++
++    bool hasPendingChunks() const override;
++    void processInput() override;
++    InputProcessingProgress inputProcessingProgress() const override;
++
++    void clearCache() override;
++
++private:
++    void onOutputSpecChanged(const OutputSpec& spec) override;
++    void doSelfProcess(float* buffer, samples_t samplesPerChannel) override;
++
++    void convertToOutput();
++
++    std::vector<float> m_source;       // as received
++    sample_rate_t m_sourceRate = 0;
++    audioch_t m_sourceChannels = 0;
++
++    std::vector<float> m_output;       // at the output rate, with the output channel count
++    sample_rate_t m_outputRate = 0;
++    audioch_t m_outputChannels = 0;
++
++    int64_t m_frame = 0;               // playhead, in output frames
++    float m_tracePeak = 0.f;
++    int64_t m_traceFrames = 0;
++    TimePosition m_position;
++
++    AudioInputParams m_params;
++    async::Channel<AudioInputParams> m_paramsChanges;
++    async::Notification m_readyToPlayChanged;
++};
++
++using PcmAudioNodePtr = std::shared_ptr<PcmAudioNode>;
++}

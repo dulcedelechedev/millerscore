@@ -1,0 +1,252 @@
+diff --git a/framework/update/tests/appupdatescenario_tests.cpp b/framework/update/tests/appupdatescenario_tests.cpp
+index abe2f5f9a..d56e6868c 100644
+--- a/framework/update/tests/appupdatescenario_tests.cpp
++++ b/framework/update/tests/appupdatescenario_tests.cpp
+@@ -88,6 +88,8 @@ public:
+         //! [GIVEN] An update is available and automatic download is enabled
+         ReleaseInfo info;
+         info.version = "1000.0";
++        info.fileName = "MuseScore.dmg";
++        info.fileUrl = "https://example.invalid/MuseScore.dmg";
+         m_lastCheckResult = RetVal<ReleaseInfo>::make_ok(info);
+ 
+         ON_CALL(*m_service, lastCheckResult())
+@@ -245,6 +247,17 @@ TEST_F(AppUpdateScenarioTests, BgDownload_MeteredThenUnmetered_DownloadsOnRetry)
+     downloadUpdateInBackground();
+ }
+ 
++TEST_F(AppUpdateScenarioTests, BgDownload_SourceOnlyReleaseDoesNotStartExternalAction)
++{
++    m_lastCheckResult.val.fileName.clear();
++    m_lastCheckResult.val.fileUrl = "itch://install?game_id=5065105";
++    EXPECT_CALL(*m_service, downloadRelease()).Times(0);
++    EXPECT_CALL(*m_platformInteractive, openUrl(testing::A<const std::string&>())).Times(0);
++    EXPECT_CALL(*m_networkInformation, isMetered()).Times(0);
++    downloadUpdateInBackground();
++    EXPECT_FALSE(m_scenario->hasReadyUpdate());
++}
++
+ TEST_F(AppUpdateScenarioTests, BgDownload_AlreadyDownloaded_SurfacedEvenOnMetered)
+ {
+     //! [GIVEN] The release was already downloaded in a previous session
+@@ -334,6 +347,50 @@ TEST_F(AppUpdateScenarioTests, ManualSourceOnlyRelease_OpensItchApp)
+     EXPECT_TRUE(result);
+ }
+ 
++TEST_F(AppUpdateScenarioTests, ManualSourceOnlyRelease_AbsentItchOpensStorePage)
++{
++    m_lastCheckResult.val.fileName.clear();
++    m_lastCheckResult.val.fileUrl = "itch://install?game_id=5065105";
++    testing::InSequence order;
++    EXPECT_CALL(*m_platformInteractive, openUrl(std::string("itch://install?game_id=5065105")))
++    .WillOnce(Return(muse::make_ret(Ret::Code::NotSupported)));
++    EXPECT_CALL(*m_platformInteractive, openUrl(std::string("https://dulcedelechedev.itch.io/millerscore")))
++    .WillOnce(Return(muse::make_ok()));
++    EXPECT_CALL(*m_interactive, openSync(_)).Times(0);
++    EXPECT_CALL(*m_service, downloadRelease()).Times(0);
++    Ret result;
++    downloadRelease().onResolve(m_scenario, [&result](const Ret& ret) { result = ret; });
++    pump();
++    EXPECT_TRUE(result);
++}
++
++TEST_F(AppUpdateScenarioTests, ManualSourceOnlyRelease_FailedFallbackReportsError)
++{
++    m_lastCheckResult.val.fileName.clear();
++    m_lastCheckResult.val.fileUrl = "itch://install?game_id=5065105";
++    const Ret failure = muse::make_ret(Ret::Code::NotSupported);
++    EXPECT_CALL(*m_platformInteractive, openUrl(testing::A<const std::string&>())).Times(2).WillRepeatedly(Return(failure));
++    EXPECT_CALL(*m_service, downloadRelease()).Times(0);
++    bool settled = false;
++    Ret result;
++    downloadRelease().onResolve(m_scenario, [&settled, &result](const Ret& ret) { settled = true; result = ret; });
++    pump();
++    EXPECT_TRUE(settled);
++    EXPECT_EQ(result.code(), failure.code());
++}
++
++TEST_F(AppUpdateScenarioTests, ManualSourceOnlyRelease_NoRouteReturnsNoUpdate)
++{
++    m_lastCheckResult.val.fileName.clear();
++    m_lastCheckResult.val.fileUrl.clear();
++    EXPECT_CALL(*m_platformInteractive, openUrl(testing::A<const std::string&>())).Times(0);
++    EXPECT_CALL(*m_service, downloadRelease()).Times(0);
++    Ret result;
++    downloadRelease().onResolve(m_scenario, [&result](const Ret& ret) { result = ret; });
++    pump();
++    EXPECT_EQ(result.code(), static_cast<int>(Err::NoUpdate));
++}
++
+ TEST_F(AppUpdateScenarioTests, ManualDownload_NotEnoughDiskSpace_Retry_ReopensDownload)
+ {
+     //! [GIVEN] The disk is still full on the second attempt
+diff --git a/framework/update/tests/appupdateservice_tests.cpp b/framework/update/tests/appupdateservice_tests.cpp
+index f620a8afc..99e5f9919 100644
+--- a/framework/update/tests/appupdateservice_tests.cpp
++++ b/framework/update/tests/appupdateservice_tests.cpp
+@@ -28,6 +28,7 @@ using ::testing::NiceMock;
+ using ::testing::Return;
+ 
+ #include "framework/network/networktypes.h"
++#include "network/networkerrors.h"
+ 
+ #include "global/tests/mocks/systeminfomock.h"
+ #include "global/tests/mocks/filesystemmock.h"
+@@ -46,6 +47,7 @@ using namespace muse;
+ using namespace muse::update;
+ using namespace muse::async;
+ using namespace muse::network;
++using muse::update::Err;
+ 
+ namespace muse::update {
+ class AppUpdateServiceTests : public ::testing::Test, public ::async::Asyncable
+@@ -94,6 +96,11 @@ public:
+         delete m_service;
+     }
+ 
++    RetVal<ReleaseInfo> parseRelease(const QByteArray& json) const
++    {
++        return m_service->parseRelease(json);
++    }
++
+     void makeReleaseInfo()
+     {
+         std::string checkForAppUpdateUrl = "checkForAppUpdateUrl";
+@@ -400,7 +407,7 @@ TEST_F(AppUpdateServiceTests, ParseRelease_GitHubSourceOnly)
+     })json";
+ 
+     //! [WHEN] The release is parsed
+-    const RetVal<ReleaseInfo> result = m_service->parseRelease(json);
++    const RetVal<ReleaseInfo> result = parseRelease(json);
+ 
+     //! [THEN] It remains valid and delegates the authenticated update to itch.io
+     ASSERT_TRUE(result.ret);
+@@ -410,6 +417,101 @@ TEST_F(AppUpdateServiceTests, ParseRelease_GitHubSourceOnly)
+     EXPECT_EQ(result.val.notes, "MillerScore 0.2.0 release notes");
+ }
+ 
++TEST_F(AppUpdateServiceTests, ParseRelease_MalformedOrMissingMetadataIsRejected)
++{
++    for (const QByteArray json : { QByteArray(), QByteArray("not-json"), QByteArray("{\"tag_name\":"),
++                                  QByteArray("null"), QByteArray("[]"), QByteArray("[1]"), QByteArray("{}"),
++                                  QByteArray("{\"message\":\"Not Found\"}") }) {
++        SCOPED_TRACE(json.constData());
++        const RetVal<ReleaseInfo> result = parseRelease(json);
++        EXPECT_EQ(result.ret.code(), static_cast<int>(muse::update::Err::ReleaseInfoParseError));
++        EXPECT_TRUE(result.val.version.empty());
++        EXPECT_TRUE(result.val.fileUrl.empty());
++    }
++}
++
++TEST_F(AppUpdateServiceTests, ParseRelease_GitHubArrayRetainsSourceOnlyRouting)
++{
++    const QByteArray json = R"json([{
++        "tag_name": "v1000.0.0",
++        "body": "Release notes",
++        "assets": []
++    }])json";
++    const RetVal<ReleaseInfo> result = parseRelease(json);
++    ASSERT_TRUE(result.ret);
++    EXPECT_EQ(result.val.version, "1000.0.0");
++    EXPECT_TRUE(result.val.fileName.empty());
++    EXPECT_EQ(result.val.fileUrl, "itch://install?game_id=5065105");
++}
++
++TEST_F(AppUpdateServiceTests, CheckForUpdate_ImmediateOfflineFailureSettlesPromise)
++{
++    givenAvailableRelease();
++    const Ret offline = muse::network::make_ret(muse::network::Err::NetworkError);
++    EXPECT_CALL(*m_networkManager, get(_, _, _))
++    .WillOnce(Return(RetVal<Progress>::make_ret(offline)));
++    bool settled = false;
++    RetVal<ReleaseInfo> result;
++    m_service->checkForUpdate().onResolve(this, [&settled, &result](const RetVal<ReleaseInfo>& value) {
++        settled = true;
++        result = value;
++    });
++    async::processMessages();
++    EXPECT_TRUE(settled);
++    EXPECT_EQ(result.ret.code(), offline.code());
++    EXPECT_TRUE(result.val.version.empty());
++    EXPECT_TRUE(result.val.fileName.empty());
++}
++
++TEST_F(AppUpdateServiceTests, CheckForUpdate_Http404AndRateLimitAreRecoverable)
++{
++    for (const int status : { 404, 429, 503 }) {
++        SCOPED_TRACE(status);
++        Progress request;
++        EXPECT_CALL(*m_networkManager, get(_, _, _))
++        .WillOnce(Return(RetVal<Progress>::make_ok(request)));
++        bool settled = false;
++        RetVal<ReleaseInfo> result;
++        m_service->checkForUpdate().onResolve(this, [&settled, &result](const RetVal<ReleaseInfo>& value) {
++            settled = true;
++            result = value;
++        });
++        async::processMessages();
++        Ret failure = muse::network::make_ret(muse::network::Err::NetworkError);
++        failure.setData("status", status);
++        request.finish(ProgressResult::make_ret(failure));
++        async::processMessages();
++        EXPECT_TRUE(settled);
++        EXPECT_EQ(result.ret.code(), failure.code());
++        EXPECT_EQ(result.ret.data("status", 0), status);
++        EXPECT_TRUE(result.val.version.empty());
++        EXPECT_TRUE(result.val.fileUrl.empty());
++    }
++}
++
++TEST_F(AppUpdateServiceTests, CheckForUpdate_MalformedResponseSettlesWithoutDownload)
++{
++    EXPECT_CALL(*m_networkManager, get(_, _, _))
++    .WillOnce(testing::Invoke([this](const QUrl&, IncomingDevicePtr buffer, const RequestHeaders&) {
++        buffer->open(IncomingDevice::WriteOnly);
++        buffer->write("{\"tag_name\":");
++        buffer->close();
++        return RetVal<Progress>::make_ok(m_getReleaseInfoProgress);
++    }));
++    bool settled = false;
++    RetVal<ReleaseInfo> result;
++    m_service->checkForUpdate().onResolve(this, [&settled, &result](const RetVal<ReleaseInfo>& value) {
++        settled = true;
++        result = value;
++    });
++    async::processMessages();
++    m_getReleaseInfoProgress.finish(ProgressResult::make_ok({}));
++    async::processMessages();
++    EXPECT_TRUE(settled);
++    EXPECT_EQ(result.ret.code(), static_cast<int>(muse::update::Err::ReleaseInfoParseError));
++    EXPECT_TRUE(result.val.fileName.empty());
++}
++
+ TEST_F(AppUpdateServiceTests, CheckForUpdate_ReleasesNotes)
+ {
+     //! [GIVEN] Release info
+@@ -588,7 +690,7 @@ TEST_F(AppUpdateServiceTests, DownloadRelease_NotEnoughDiskSpace_DoesNotStart)
+ 
+     //! [THEN] The download is refused with a disk space error naming the missing amount
+     //! (100 MB package + 100 MB reserve - 50 MB available = 150 MB)
+-    EXPECT_EQ(rv.ret.code(), static_cast<int>(Err::NotEnoughDiskSpace));
++    EXPECT_EQ(rv.ret.code(), static_cast<int>(muse::update::Err::NotEnoughDiskSpace));
+     EXPECT_NE(rv.ret.text().find("150 MB"), std::string::npos);
+ }
+ 
+@@ -651,7 +753,7 @@ TEST_F(AppUpdateServiceTests, DownloadRelease_AbsurdPackageSize_Rejected)
+     RetVal<Progress> rv = m_service->downloadRelease();
+ 
+     //! [THEN] The download is refused
+-    EXPECT_EQ(rv.ret.code(), static_cast<int>(Err::NotEnoughDiskSpace));
++    EXPECT_EQ(rv.ret.code(), static_cast<int>(muse::update::Err::NotEnoughDiskSpace));
+ }
+ 
+ TEST_F(AppUpdateServiceTests, DownloadRelease_Resume_OnlyRemainingBytesRequired)
+@@ -698,7 +800,7 @@ TEST_F(AppUpdateServiceTests, PrepareUpdate_NotEnoughDiskSpace_DoesNotStage)
+     RetVal<io::path_t> rv = m_service->prepareUpdate(package);
+ 
+     //! [THEN] It fails with a disk space error
+-    EXPECT_EQ(rv.ret.code(), static_cast<int>(Err::NotEnoughDiskSpace));
++    EXPECT_EQ(rv.ret.code(), static_cast<int>(muse::update::Err::NotEnoughDiskSpace));
+ }
+ 
+ TEST_F(AppUpdateServiceTests, PrepareUpdate_EnoughDiskSpace_Stages)

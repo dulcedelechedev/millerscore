@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="boot/boot.css">
+<style>
+	html, body { margin: 0; background: #050403; overflow: hidden; }
+	:root { --gg-font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+</style>
+<script>
+// stand-in for Electron's node integration: boot.js only reads boot.json and the jingle
+(function() {
+	function get(url, binary) {
+		var x = new XMLHttpRequest();
+		x.open("GET", url, false);
+		if (binary) x.overrideMimeType("text/plain; charset=x-user-defined");
+		x.send();
+		if (!binary) return x.responseText;
+		var s = x.responseText, b = new Uint8Array(s.length);
+		for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xff;
+		return b;
+	}
+	function base(p) { return String(p).split(/[\\/]/).pop(); }
+	var fs = {
+		existsSync: function(p) { return base(p) == "jingle.mp3"; },
+		readFileSync: function(p, enc) { return get("assets/" + base(p), !enc); },
+	};
+	var path = {
+		resolve: function() { return "/assets"; },
+		dirname: function(p) { return p; },
+		join: function(a, b) { return a + "/" + b; },
+	};
+	window.require = function(n) { return n == "fs" ? fs : n == "path" ? path : null; };
+})();
+</script>
+</head>
+<body>
+<script src="boot/mark.js"></script>
+<script src="boot/boot.js"></script>
+</body>
+</html>
