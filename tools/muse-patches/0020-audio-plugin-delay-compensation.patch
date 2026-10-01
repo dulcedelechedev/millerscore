@@ -1,0 +1,522 @@
+diff --git a/framework/audio/engine/ifxprocessor.h b/framework/audio/engine/ifxprocessor.h
+--- a/framework/audio/engine/ifxprocessor.h
++++ b/framework/audio/engine/ifxprocessor.h
+@@ -47,6 +47,9 @@ public:
+     //! instance. Processors without a configurable state ignore it.
+     virtual void setConfiguration(const AudioUnitConfig& configuration) { (void)configuration; }
+ 
++    //! Delay, in samples, that processing adds to the signal (reported by the plug-in).
++    virtual samples_t latencySamples() const { return 0; }
++
+     virtual void setMode(const ProcessMode mode) = 0;
+ 
+     virtual bool shouldProcessDuringSilence() const = 0;
+diff --git a/framework/audio/engine/internal/nodes/fxnode.h b/framework/audio/engine/internal/nodes/fxnode.h
+--- a/framework/audio/engine/internal/nodes/fxnode.h
++++ b/framework/audio/engine/internal/nodes/fxnode.h
+@@ -51,6 +51,9 @@ public:
+     //! so parameters echoed by the processor never revert a user bypass.
+     void setActive(bool active);
+ 
++    //! The processor's latency while the node processes; 0 when bypassed.
++    samples_t latencySamples() const;
++
+ protected:
+ 
+     void onModeChanged(const ProcessMode mode) override;
+diff --git a/framework/audio/engine/internal/nodes/fxnode.cpp b/framework/audio/engine/internal/nodes/fxnode.cpp
+--- a/framework/audio/engine/internal/nodes/fxnode.cpp
++++ b/framework/audio/engine/internal/nodes/fxnode.cpp
+@@ -65,6 +65,11 @@ void FxNode::setActive(bool active)
+     setBypassed(!active);
+ }
+ 
++samples_t FxNode::latencySamples() const
++{
++    return bypassed() || !enabled() ? 0 : m_fxProcessor->latencySamples();
++}
++
+ void FxNode::onOutputSpecChanged(const OutputSpec& spec)
+ {
+     m_fxProcessor->setOutputSpec(spec);
+diff --git a/framework/audio/engine/internal/nodes/fxchain.h b/framework/audio/engine/internal/nodes/fxchain.h
+--- a/framework/audio/engine/internal/nodes/fxchain.h
++++ b/framework/audio/engine/internal/nodes/fxchain.h
+@@ -52,6 +52,9 @@ public:
+     bool shouldProcessDuringSilence() const;
+     async::Channel<bool> shouldProcessDuringSilenceChanged() const;
+ 
++    //! Total delay the chain's processing effects add to the signal.
++    samples_t latencySamples() const;
++
+ private:
+     void rebuild() override;
+     void doSelfProcess(float* buffer, samples_t samplesPerChannel) override;
+diff --git a/framework/audio/engine/internal/nodes/fxchain.cpp b/framework/audio/engine/internal/nodes/fxchain.cpp
+--- a/framework/audio/engine/internal/nodes/fxchain.cpp
++++ b/framework/audio/engine/internal/nodes/fxchain.cpp
+@@ -165,6 +165,17 @@ void FxChain::updateShouldProcessDuringSilence()
+     }
+ }
+ 
++samples_t FxChain::latencySamples() const
++{
++    samples_t total = 0;
++    for (const auto& node : m_nodes) {
++        if (auto fx = std::dynamic_pointer_cast<FxNode>(node)) {
++            total += fx->latencySamples();
++        }
++    }
++    return total;
++}
++
+ bool FxChain::shouldProcessDuringSilence() const
+ {
+     return m_shouldProcessDuringSilence;
+diff --git a/framework/audio/engine/internal/nodes/trackchain.h b/framework/audio/engine/internal/nodes/trackchain.h
+--- a/framework/audio/engine/internal/nodes/trackchain.h
++++ b/framework/audio/engine/internal/nodes/trackchain.h
+@@ -61,6 +61,9 @@ public:
+ 
+     void rebuild() override;
+ 
++    //! Delay the chain's effects add to the signal (instrument latency is not included).
++    samples_t latencySamples() const;
++
+ protected:
+ 
+     void doSelfProcess(float*, samples_t) override {}
+diff --git a/framework/audio/engine/internal/nodes/trackchain.cpp b/framework/audio/engine/internal/nodes/trackchain.cpp
+--- a/framework/audio/engine/internal/nodes/trackchain.cpp
++++ b/framework/audio/engine/internal/nodes/trackchain.cpp
+@@ -52,6 +52,11 @@ void TrackChain::rebuild()
+     ChainNode<TrackChainTag>::rebuild();
+ }
+ 
++samples_t TrackChain::latencySamples() const
++{
++    return m_fxChain ? m_fxChain->latencySamples() : 0;
++}
++
+ TrackId TrackChain::trackId() const
+ {
+     return m_trackId;
+diff --git a/framework/audio/engine/internal/mixer.h b/framework/audio/engine/internal/mixer.h
+--- a/framework/audio/engine/internal/mixer.h
++++ b/framework/audio/engine/internal/mixer.h
+@@ -90,8 +90,17 @@ private:
+         TrackChainPtr chain;
+         std::vector<float> buffer;
+         bool processed = false;
++
++        //! Plug-in delay compensation: a ring of MAX_LATENCY_COMPENSATION frames,
++        //! allocated off the audio thread.
++        std::vector<float> delayLine;
++        size_t delayWrite = 0;
++        samples_t latency = 0; // read once per block
+     };
+ 
++    void allocateDelayLine(TrackData& track) const;
++    void compensateLatency(TrackData& track, samples_t delay, samples_t samplesPerChannel) const;
++
+     std::vector<TrackData> m_tracks;
+     std::vector<TrackData> m_auxTracks;
+     std::map<TrackId, AuxSendsParams> m_auxSends;
+diff --git a/framework/audio/engine/internal/mixer.cpp b/framework/audio/engine/internal/mixer.cpp
+--- a/framework/audio/engine/internal/mixer.cpp
++++ b/framework/audio/engine/internal/mixer.cpp
+@@ -21,6 +21,7 @@
+  */
+ #include "mixer.h"
+ 
++#include <algorithm>
+ #include <sstream>
+ 
+ #include "audio/common/audiosanitizer.h"
+@@ -37,6 +38,9 @@ using namespace muse::audio::engine;
+ 
+ constexpr size_t MIN_TRACK_COUNT_FOR_MULTITHREADING = 2;
+ 
++//! The largest insert-effect latency difference between tracks that is compensated.
++static constexpr samples_t MAX_LATENCY_COMPENSATION = 16384;
++
+ static bool isChainSilent(const TrackChainPtr& chain)
+ {
+     if (auto signal = chain->signal()) {
+@@ -63,6 +67,7 @@ Ret Mixer::addTrack(TrackChainPtr trackChain, const AuxSendsParams& auxSends)
+     trackData.trackId = trackChain->trackId();
+     trackData.chain = trackChain;
+     trackData.buffer.resize(outBufferSize);
++    allocateDelayLine(trackData);
+ 
+     m_tracks.emplace_back(std::move(trackData));
+     m_trackTasks.reserve(m_tracks.size());
+@@ -127,6 +132,7 @@ void Mixer::onOutputSpecChanged(const OutputSpec& spec)
+         if (t.buffer.size() < outBufferSize) {
+             t.buffer.resize(outBufferSize);
+         }
++        allocateDelayLine(t);
+     }
+ 
+     for (auto& t : m_auxTracks) {
+@@ -164,14 +170,27 @@ void Mixer::process(float* outBuffer, samples_t samplesPerChannel)
+ 
+     prepareAuxBuffers(outBufferSize);
+ 
++    //! NOTE Plug-in delay compensation: every track is delayed to line up with the one
++    // whose insert effects add the most latency. Aux returns and the master are not
++    // compensated (they affect every track alike, or only the wet signal).
++    samples_t maxLatency = 0;
++    for (auto& t : m_tracks) {
++        t.latency = t.processed ? t.chain->latencySamples() : 0;
++        maxLatency = std::max(maxLatency, t.latency);
++    }
++
+     for (auto& t : m_tracks) {
+         if (!t.processed) {
+             continue;
+         }
+ 
+-        //! NOTE If the signal is silent, do not write to the output buffer
+-        //! or the aux buffers
+-        if (isChainSilent(t.chain)) {
++        const samples_t delay = std::min<samples_t>(maxLatency - t.latency, MAX_LATENCY_COMPENSATION - 1);
++        if (delay > 0) {
++            // A delayed track can still sound while its current block is silent.
++            compensateLatency(t, delay, samplesPerChannel);
++        } else if (isChainSilent(t.chain)) {
++            //! NOTE If the signal is silent, do not write to the output buffer
++            //! or the aux buffers
+             continue;
+         }
+ 
+@@ -187,6 +206,41 @@ void Mixer::process(float* outBuffer, samples_t samplesPerChannel)
+     processAuxChannels(outBuffer, samplesPerChannel);
+ }
+ 
++void Mixer::allocateDelayLine(TrackData& track) const
++{
++    const size_t size = static_cast<size_t>(MAX_LATENCY_COMPENSATION) * m_outputSpec.audioChannelCount;
++    if (track.delayLine.size() != size) {
++        track.delayLine.assign(size, 0.f);
++        track.delayWrite = 0;
++    }
++}
++
++void Mixer::compensateLatency(TrackData& track, samples_t delay, samples_t samplesPerChannel) const
++{
++    const size_t channels = m_outputSpec.audioChannelCount;
++    const size_t ringFrames = channels ? track.delayLine.size() / channels : 0;
++    if (ringFrames == 0) {
++        return;
++    }
++
++    float* buffer = track.buffer.data();
++    float* ring = track.delayLine.data();
++
++    for (samples_t frame = 0; frame < samplesPerChannel; ++frame) {
++        const size_t writeFrame = track.delayWrite;
++        const size_t readFrame = (writeFrame + ringFrames - static_cast<size_t>(delay)) % ringFrames;
++
++        for (size_t ch = 0; ch < channels; ++ch) {
++            const size_t io = frame * channels + ch;
++            const float delayed = ring[readFrame * channels + ch];
++            ring[writeFrame * channels + ch] = buffer[io];
++            buffer[io] = delayed;
++        }
++
++        track.delayWrite = (writeFrame + 1) % ringFrames;
++    }
++}
++
+ void Mixer::processTrackChannels(size_t outBufferSize,
+                                  size_t samplesPerChannel)
+ {
+diff --git a/framework/vst/internal/vstaudioclient.h b/framework/vst/internal/vstaudioclient.h
+--- a/framework/vst/internal/vstaudioclient.h
++++ b/framework/vst/internal/vstaudioclient.h
+@@ -21,6 +21,8 @@
+  */
+ #pragma once
+ 
++#include <atomic>
++
+ #include "../ivstplugininstance.h"
+ #include "../vsttypes.h"
+ 
+@@ -52,6 +54,9 @@ public:
+ 
+     void flushSound();
+ 
++    //! Latency the plug-in reports while active (read on the audio thread).
++    audio::samples_t latencySamples() const;
++
+     audio::samples_t process(float* output, audio::samples_t samplesPerChannel, audio::samples_t playbackPositionSamples = 0);
+ 
+     ParamsMapping paramsMapping(const std::set<Steinberg::Vst::CtrlNumber>& controllers) const;
+@@ -77,6 +82,7 @@ private:
+     void addParamChange(const ParamChangeEvent& param);
+ 
+     bool m_isActive = false;
++    std::atomic<audio::samples_t> m_latencySamples = 0;
+     muse::audio::gain_t m_volumeGain = 1.f; // 0.0 - 1.0
+ 
+     IVstPluginInstancePtr m_pluginPtr = nullptr;
+diff --git a/framework/vst/internal/vstaudioclient.cpp b/framework/vst/internal/vstaudioclient.cpp
+--- a/framework/vst/internal/vstaudioclient.cpp
++++ b/framework/vst/internal/vstaudioclient.cpp
+@@ -443,6 +443,9 @@ void VstAudioClient::updateProcessSetup()
+     flushBuffers();
+ 
+     ensureActivity();
++
++    // The latency may depend on the new sample rate and block size.
++    m_latencySamples = processor->getLatencySamples();
+ }
+ 
+ void VstAudioClient::extractInputSamples(samples_t sampleCount, const float* sourceBuffer)
+@@ -565,6 +568,12 @@ void VstAudioClient::ensureActivity()
+     processor->setProcessing(true);
+ 
+     m_isActive = true;
++    m_latencySamples = processor->getLatencySamples();
++}
++
++audio::samples_t VstAudioClient::latencySamples() const
++{
++    return m_isActive ? m_latencySamples.load() : 0;
+ }
+ 
+ void VstAudioClient::disableActivity()
+diff --git a/framework/vst/internal/fx/vstfxprocessor.h b/framework/vst/internal/fx/vstfxprocessor.h
+--- a/framework/vst/internal/fx/vstfxprocessor.h
++++ b/framework/vst/internal/fx/vstfxprocessor.h
+@@ -50,6 +50,7 @@ public:
+     bool active() const override;
+     void setActive(bool active) override;
+     void setConfiguration(const muse::audio::AudioUnitConfig& configuration) override;
++    muse::audio::samples_t latencySamples() const override;
+ 
+     void setMode(const muse::audio::ProcessMode mode) override;
+ 
+diff --git a/framework/vst/internal/fx/vstfxprocessor.cpp b/framework/vst/internal/fx/vstfxprocessor.cpp
+--- a/framework/vst/internal/fx/vstfxprocessor.cpp
++++ b/framework/vst/internal/fx/vstfxprocessor.cpp
+@@ -124,6 +124,11 @@ void VstFxProcessor::setConfiguration(const muse::audio::AudioUnitConfig& config
+     }
+ }
+ 
++muse::audio::samples_t VstFxProcessor::latencySamples() const
++{
++    return m_inited ? m_vstAudioClient->latencySamples() : 0;
++}
++
+ void VstFxProcessor::setMode(const muse::audio::ProcessMode mode)
+ {
+     m_vstAudioClient->setIsPlaying(muse::audio::isModePlaying(mode));
+diff --git a/framework/audio/tests/CMakeLists.txt b/framework/audio/tests/CMakeLists.txt
+--- a/framework/audio/tests/CMakeLists.txt
++++ b/framework/audio/tests/CMakeLists.txt
+@@ -35,6 +35,7 @@ set(MODULE_TEST muse_audio_engine_tests)
+ 
+ set(MODULE_TEST_SRC
+     ${CMAKE_CURRENT_LIST_DIR}/fxchain_tests.cpp
++    ${CMAKE_CURRENT_LIST_DIR}/latency_tests.cpp
+ )
+ 
+ # The engine includes its headers relative to framework/audio.
+diff --git a/framework/audio/tests/latency_tests.cpp b/framework/audio/tests/latency_tests.cpp
+new file mode 100644
+--- /dev/null
++++ b/framework/audio/tests/latency_tests.cpp
+@@ -0,0 +1,190 @@
++/*
++ * SPDX-License-Identifier: GPL-3.0-only
++ * MuseScore-CLA-applies
++ *
++ * MuseScore Studio
++ * Music Composition & Notation
++ *
++ * Copyright (C) 2026 MuseScore Limited and others
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 3 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++#include <gtest/gtest.h>
++
++#include <vector>
++
++#include "audio/engine/internal/mixer.h"
++#include "audio/engine/internal/nodes/trackchain.h"
++#include "audio/engine/internal/nodes/fxchain.h"
++
++using namespace muse;
++using namespace muse::audio;
++using namespace muse::audio::engine;
++
++namespace {
++const OutputSpec SPEC { 44100, 64, 2 };
++
++struct ImpulseTag {
++    static constexpr const char* name = "Impulse";
++};
++
++//! Emits one full-scale sample on every channel at the first frame, then silence.
++class ImpulseSource : public AudioNode<ImpulseTag>
++{
++protected:
++    void doSelfProcess(float* buffer, samples_t samplesPerChannel) override
++    {
++        if (!m_fired && samplesPerChannel > 0) {
++            for (audioch_t ch = 0; ch < outputSpec().audioChannelCount; ++ch) {
++                buffer[ch] = 1.f;
++            }
++            m_fired = true;
++        }
++    }
++
++private:
++    bool m_fired = false;
++};
++
++//! An effect that really delays the signal by its reported latency.
++class DelayFx : public IFxProcessor
++{
++public:
++    explicit DelayFx(samples_t latency)
++        : m_latency(latency), m_ring(latency * SPEC.audioChannelCount, 0.f)
++    {
++        m_params.chainOrder = 0;
++        m_params.active = true;
++        m_params.resourceMeta = { "Delay", "Test", {}, resourceTypeName(AudioResourceType::NativeEffect) };
++    }
++
++    AudioFxType type() const override { return AudioFxType::MuseFx; }
++    std::string name() const override { return "Delay"; }
++    const AudioFxParams& params() const override { return m_params; }
++    async::Channel<AudioFxParams> paramsChanged() const override { return m_paramsChanged; }
++    void setOutputSpec(const OutputSpec&) override {}
++    bool active() const override { return m_params.active; }
++    void setActive(bool active) override { m_params.active = active; }
++    void setMode(const ProcessMode) override {}
++    bool shouldProcessDuringSilence() const override { return true; }
++    samples_t latencySamples() const override { return m_latency; }
++
++    void process(float* buffer, samples_t samplesPerChannel, samples_t) override
++    {
++        const size_t channels = SPEC.audioChannelCount;
++        for (samples_t frame = 0; frame < samplesPerChannel; ++frame) {
++            for (size_t ch = 0; ch < channels; ++ch) {
++                float& slot = m_ring[m_pos * channels + ch];
++                const float out = slot;
++                slot = buffer[frame * channels + ch];
++                buffer[frame * channels + ch] = out;
++            }
++            m_pos = (m_pos + 1) % m_latency;
++        }
++    }
++
++private:
++    samples_t m_latency = 0;
++    std::vector<float> m_ring;
++    size_t m_pos = 0;
++    AudioFxParams m_params;
++    async::Channel<AudioFxParams> m_paramsChanged;
++};
++
++TrackChainPtr makeTrack(TrackId id, IFxProcessorPtr fx)
++{
++    auto chain = std::make_shared<TrackChain>(id, "track");
++    chain->setOutputSpec(SPEC);
++    chain->setSource(std::make_shared<ImpulseSource>());
++
++    auto fxChain = std::make_shared<FxChain>();
++    fxChain->setFxList(fx ? std::vector<IFxProcessorPtr> { fx } : std::vector<IFxProcessorPtr> {});
++    chain->setFxChain(fxChain);
++    chain->rebuild();
++    return chain;
++}
++
++//! Frames (channel 0) where the mixed output is not silent.
++std::vector<size_t> soundingFrames(const std::vector<float>& buffer)
++{
++    std::vector<size_t> frames;
++    for (size_t i = 0; i < buffer.size(); i += SPEC.audioChannelCount) {
++        if (buffer[i] != 0.f) {
++            frames.push_back(i / SPEC.audioChannelCount);
++        }
++    }
++    return frames;
++}
++}
++
++// A track without latency is delayed to line up with a track whose effect adds 10 samples.
++TEST(Audio_LatencyTests, TracksLineUpWithTheSlowestChain)
++{
++    Mixer mixer;
++    mixer.setOutputSpec(SPEC);
++    mixer.addTrack(makeTrack(1, std::make_shared<DelayFx>(10)), {});
++    mixer.addTrack(makeTrack(2, nullptr), {});
++
++    std::vector<float> out(SPEC.samplesPerChannel * SPEC.audioChannelCount, 0.f);
++    mixer.process(out.data(), SPEC.samplesPerChannel);
++
++    ASSERT_EQ(soundingFrames(out), std::vector<size_t>({ 10 }));
++    EXPECT_FLOAT_EQ(out[10 * SPEC.audioChannelCount], 2.f);
++}
++
++// With no latency anywhere nothing is delayed.
++TEST(Audio_LatencyTests, NoLatencyNoDelay)
++{
++    Mixer mixer;
++    mixer.setOutputSpec(SPEC);
++    mixer.addTrack(makeTrack(1, nullptr), {});
++    mixer.addTrack(makeTrack(2, nullptr), {});
++
++    std::vector<float> out(SPEC.samplesPerChannel * SPEC.audioChannelCount, 0.f);
++    mixer.process(out.data(), SPEC.samplesPerChannel);
++
++    ASSERT_EQ(soundingFrames(out), std::vector<size_t>({ 0 }));
++    EXPECT_FLOAT_EQ(out[0], 2.f);
++}
++
++// The delayed signal crosses block boundaries.
++TEST(Audio_LatencyTests, CompensationSpansBlocks)
++{
++    Mixer mixer;
++    mixer.setOutputSpec(SPEC);
++    const samples_t latency = SPEC.samplesPerChannel + 5; // longer than one block
++    mixer.addTrack(makeTrack(1, std::make_shared<DelayFx>(latency)), {});
++    mixer.addTrack(makeTrack(2, nullptr), {});
++
++    std::vector<float> first(SPEC.samplesPerChannel * SPEC.audioChannelCount, 0.f);
++    mixer.process(first.data(), SPEC.samplesPerChannel);
++    std::vector<float> second(SPEC.samplesPerChannel * SPEC.audioChannelCount, 0.f);
++    mixer.process(second.data(), SPEC.samplesPerChannel);
++
++    EXPECT_TRUE(soundingFrames(first).empty());
++    ASSERT_EQ(soundingFrames(second), std::vector<size_t>({ 5 }));
++    EXPECT_FLOAT_EQ(second[5 * SPEC.audioChannelCount], 2.f);
++}
++
++// A bypassed effect adds no latency, so nothing is compensated for it.
++TEST(Audio_LatencyTests, BypassedEffectAddsNoLatency)
++{
++    auto fx = std::make_shared<DelayFx>(10);
++    TrackChainPtr slow = makeTrack(1, fx);
++
++    AudioFxParams bypassed = fx->params();
++    bypassed.active = false;
++    slow->fxChain()->setFxChainSpec({ { 0, bypassed } });
++
++    EXPECT_EQ(slow->latencySamples(), 0u);
++}

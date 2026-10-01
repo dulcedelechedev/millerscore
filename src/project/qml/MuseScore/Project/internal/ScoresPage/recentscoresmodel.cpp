@@ -1,0 +1,141 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseScore-Studio-CLA-applies
+ *
+ * MuseScore Studio
+ * Music Composition & Notation
+ *
+ * Copyright (C) 2021 MuseScore Limited and others
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+#include "recentscoresmodel.h"
+
+#include "translation.h"
+#include "dataformatter.h"
+#include "io/fileinfo.h"
+
+#include "engraving/infrastructure/mscio.h"
+#include "engraving/infrastructure/mscreader.h"
+
+#include "log.h"
+
+using namespace muse;
+using namespace mu::project;
+
+namespace {
+QString sourceApplication(const RecentFile& file)
+{
+    const std::string suffix = io::suffix(file.path);
+    if (!mu::engraving::isMuseScoreFile(suffix)) {
+        return {};
+    }
+
+    mu::engraving::MscReader::Params params;
+    params.filePath = file.path;
+    params.mode = mu::engraving::mscIoModeBySuffix(suffix);
+
+    mu::engraving::MscReader reader(params);
+    if (!reader.open()) {
+        return muse::qtrc("global", "Unknown");
+    }
+
+    // MillerScore 5 writes millerscore.json on every save.  daw.json is the
+    // compatibility signal for projects saved by earlier development builds.
+    const bool isMillerScore = !reader.readMillerScoreInfoFile().empty()
+                               || !reader.readDawJsonFile().empty();
+    return isMillerScore ? QStringLiteral("MillerScore") : QStringLiteral("MuseScore");
+}
+}
+
+RecentScoresModel::RecentScoresModel(QObject* parent)
+    : AbstractScoresModel(parent), muse::Contextable(muse::iocCtxForQmlObject(this))
+{
+}
+
+void RecentScoresModel::load()
+{
+    updateRecentScores();
+
+    recentFilesController()->recentFilesListChanged().onNotify(this, [this]() {
+        updateRecentScores();
+    });
+}
+
+void RecentScoresModel::removeRecentScore(const QString& scorePath)
+{
+    recentFilesController()->removeRecentFile(scorePath);
+}
+
+void RecentScoresModel::setRecentScores(const std::vector<QVariantMap>& items)
+{
+    if (m_items == items) {
+        return;
+    }
+
+    beginResetModel();
+    m_items = items;
+    endResetModel();
+}
+
+void RecentScoresModel::updateRecentScores()
+{
+    const RecentFilesList& recentScores = recentFilesController()->recentFilesList();
+
+    std::vector<QVariantMap> items;
+    items.reserve(recentScores.size() + 2);
+
+    QVariantMap addItem;
+    addItem[NAME_KEY] = muse::qtrc("project", "New score");
+    addItem[IS_CREATE_NEW_KEY] = true;
+    addItem[IS_NO_RESULTS_FOUND_KEY] = false;
+    addItem[IS_CLOUD_KEY] = false;
+    items.push_back(addItem);
+
+    for (const RecentFile& file : recentScores) {
+        QVariantMap obj;
+
+        std::string suffix = io::suffix(file.path);
+        bool isSuffixInteresting = suffix != engraving::MSCZ;
+
+        RetVal<uint64_t> fileSize = fileSystem()->fileSize(file.path);
+        QString fileSizeString = (fileSize.ret && fileSize.val > 0) ? DataFormatter::formatFileSize(fileSize.val).toQString() : QString();
+
+        obj[NAME_KEY] = file.displayName(isSuffixInteresting);
+        obj[PATH_KEY] = file.path.toQString();
+        obj[SUFFIX_KEY] = QString::fromStdString(suffix);
+        obj[FILE_SIZE_KEY] = fileSizeString;
+        obj[IS_CLOUD_KEY] = configuration()->isCloudProject(file.path);
+        obj[CLOUD_SCORE_ID_KEY] = configuration()->cloudScoreIdFromPath(file.path);
+        obj[TIME_SINCE_MODIFIED_KEY] = DataFormatter::formatTimeSince(io::FileInfo(file.path).lastModified().date()).toQString();
+        obj[SOURCE_APPLICATION_KEY] = sourceApplication(file);
+        obj[IS_CREATE_NEW_KEY] = false;
+        obj[IS_NO_RESULTS_FOUND_KEY] = false;
+
+        items.push_back(obj);
+    }
+
+    QVariantMap noResultsFoundItem;
+    noResultsFoundItem[NAME_KEY] = "";
+    noResultsFoundItem[IS_CREATE_NEW_KEY] = false;
+    noResultsFoundItem[IS_NO_RESULTS_FOUND_KEY] = true;
+    noResultsFoundItem[IS_CLOUD_KEY] = false;
+    items.push_back(noResultsFoundItem);
+
+    setRecentScores(items);
+}
+
+QList<int> RecentScoresModel::nonScoreItemIndices() const
+{
+    return { 0, rowCount() - 1 };
+}

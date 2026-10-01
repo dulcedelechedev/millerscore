@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Guia do usuário MillerScore em acesso antecipado: instalação, edição de partitura e DAW, configuração sonora, limites dos controladores, gravação, recuperação e privacidade.">
+<meta name="color-scheme" content="dark light">
+<title>MillerScore · Guia do usuário</title>
+<style>
+:root{color-scheme:dark;--bg:#111214;--panel:#1b1d21;--raised:#24272c;--text:#f2eee6;--muted:#c0bbb2;--gold:#efc66c;--line:#56524a;--warning:#f4d7a4}
+*{box-sizing:border-box}html{scroll-padding-top:2rem}body{margin:0;background:var(--bg);color:var(--text);font:1rem/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--gold);text-underline-offset:.2em;text-decoration-thickness:.08em;overflow-wrap:anywhere}a:hover{text-decoration-thickness:.16em}:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+h1,h2,h3{line-height:1.2;font-weight:650;letter-spacing:-.025em}h1{margin:.5rem 0 1.15rem;font-size:clamp(2.6rem,6vw,4.6rem)}h2{margin:0 0 1.4rem;font-size:clamp(1.65rem,3vw,2.2rem)}h3{margin:1.75rem 0 .75rem;font-size:1.25rem}
+p{margin:0 0 1rem}li{margin-bottom:.55rem}ul,ol{padding-left:1.4rem}strong{font-weight:650}code,kbd{font:.9em/1.5 ui-monospace,"Cascadia Code",Consolas,monospace;overflow-wrap:anywhere}code{padding:.12em .3em;background:var(--raised);border-radius:.2rem}kbd{padding:.1em .35em;border:1px solid var(--line);border-radius:.25rem}
+.skip{position:fixed;z-index:5;top:.5rem;left:.5rem;padding:.75rem 1rem;background:var(--gold);color:var(--bg);transform:translateY(-200%)}.skip:focus{transform:none}
+.layout{display:grid;grid-template-columns:16rem minmax(0,1fr);max-width:94rem;margin-inline:auto}.sidebar{align-self:start;position:sticky;top:0;max-height:100dvh;overflow-y:auto;padding:2.25rem 1.75rem;border-right:1px solid var(--line)}
+.brand{font-size:1.4rem;font-weight:650;letter-spacing:-.04em;text-decoration:none}.edition{display:block;color:var(--muted);font-size:.85rem;margin:.25rem 0 1.6rem}.sidebar h2{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}
+.sidebar ol{list-style:none;margin:0;padding:0}.sidebar li{margin:.05rem 0}.sidebar li a{display:block;color:var(--text);padding:.45rem .15rem;font-size:.94rem;text-decoration:none}.sidebar li a:hover{color:var(--gold);text-decoration:underline}
+main{min-width:0;padding:3.75rem clamp(1.25rem,4vw,5rem) 2rem}.hero{padding-bottom:2rem;max-width:56rem}.eyebrow{color:var(--gold);font-size:.82rem;letter-spacing:.13em;text-transform:uppercase;font-weight:650}.lead{color:var(--muted);font-size:1.2rem;max-width:40rem}
+.quick-links{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem}.quick-links a{display:inline-block;padding:.65rem 1rem;background:var(--raised);border:1px solid var(--line);border-radius:.3rem}
+section{border-top:1px solid var(--line);padding:2.8rem 0;max-width:62rem;scroll-margin-top:1.5rem}section>p,section>ul,section>ol{max-width:53rem}
+.note{margin:1.4rem 0;padding:1.1rem 1.25rem;border-left:3px solid var(--gold);background:var(--panel)}.note p:last-child{margin-bottom:0}.warning{border-left-color:var(--warning)}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1.4rem 0}.card{padding:1.2rem;background:var(--panel);border:1px solid var(--line);border-radius:.4rem}.card h3{margin-top:0}.card p:last-child{margin-bottom:0}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:.3rem;margin:1.4rem 0}table{border-collapse:collapse;width:100%;text-align:left;font-size:.94rem}caption{text-align:left;padding:1rem;background:var(--panel);color:var(--muted);font-weight:600}th,td{padding:.75rem .9rem;border-bottom:1px solid var(--line);vertical-align:top}thead th{background:var(--raised)}tbody th{font-weight:550}tr:last-child>*{border-bottom:0}.cc-table{min-width:40rem}.cc-table th:first-child{white-space:nowrap}
+details{margin:.8rem 0;padding:.2rem 1rem;border:1px solid var(--line);border-radius:.3rem;background:var(--panel)}summary{cursor:pointer;padding:.8rem 0;color:var(--gold);font-weight:600}details>:last-child{margin-bottom:1rem}.meta{font-size:.9rem;color:var(--muted)}.anchor-top{display:inline-block;margin-top:.7rem;font-size:.9rem}footer{border-top:1px solid var(--line);padding:2rem 0;color:var(--muted);font-size:.9rem}
+@media(max-width:58rem){.layout{display:block}.sidebar{position:static;max-height:none;padding:1.5rem;border-right:0;border-bottom:1px solid var(--line)}.sidebar ol{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.2rem .8rem}.edition{margin-bottom:1rem}main{padding-top:2.5rem}}
+@media(max-width:38rem){.sidebar ol{grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}th,td{padding:.6rem}section{padding-block:2rem}main{padding-inline:1.1rem}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important}}
+@media(forced-colors:active){.note,.card,details,.quick-links a{border:1px solid CanvasText}}
+@media print{:root{--bg:#fff;--panel:#fff;--raised:#eee;--text:#111;--muted:#333;--gold:#614100;--line:#999;--warning:#614100;color-scheme:light}.layout{display:block}.sidebar,.skip,.anchor-top,.quick-links{display:none}main{padding:0}section{padding:1.5rem 0}.table-wrap{overflow:visible}.cc-table{min-width:0}h2,h3,summary{break-after:avoid}tr,.card,.note{break-inside:avoid}}
+.language-links{display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin:0 0 1.6rem;font-size:.85rem}.language-links [aria-current="page"]{color:var(--muted)}
+/* cc-visuals:start */
+.cc-visuals{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;margin:1.5rem 0}
+.cc-visuals figure{margin:0;padding:.9rem;background:var(--panel);border:1px solid var(--line);border-radius:.4rem;min-width:0}
+.cc-visuals h4{margin:0 0 1rem;font-size:1.05rem;line-height:1.4;color:var(--gold)}
+.cc-visuals svg{display:block;width:100%;max-width:20rem;height:auto;margin:0 auto}
+.cc-visuals figcaption{margin:1rem 0 0;font-size:.94rem;line-height:1.6;color:var(--muted)}
+@media(forced-colors:active){.cc-visuals figure{border-color:CanvasText}.cc-visuals svg{forced-color-adjust:none}.cc-visuals figcaption{color:CanvasText}}
+@media print{.cc-visuals{grid-template-columns:repeat(3,minmax(0,1fr))}.cc-visuals figure{break-inside:avoid}.cc-visuals svg{background:#1b1d21;print-color-adjust:exact}}
+/* cc-visuals:end */
+</style>
+<link rel="alternate" hreflang="en" href="../index.html">
+</head>
+<body>
+<a class="skip" href="#main">Pular para o guia do usuário</a>
+<div class="layout">
+<aside class="sidebar">
+<a class="brand" href="#top">MillerScore</a>
+<span class="edition">Guia do usuário · v0.1.x em acesso antecipado</span>
+<nav class="language-links" aria-label="Idioma do guia"><a href="../index.html" lang="en" hreflang="en">English</a><span aria-current="page">Português (Brasil)</span></nav>
+<nav aria-labelledby="contents-title">
+<h2 id="contents-title">Neste guia</h2>
+<ol>
+<li><a href="#install">Instalar e atualizar</a></li>
+<li><a href="#audio">Primeira execução e áudio</a></li>
+<li><a href="#linked-project">Partitura e DAW</a></li>
+<li><a href="#piano-roll">Piano roll</a></li>
+<li><a href="#controllers">Controladores MIDI</a></li>
+<li><a href="#sounds">Fontes sonoras</a></li>
+<li><a href="#mixer">Mixer</a></li>
+<li><a href="#media">Áudio e gravação</a></li>
+<li><a href="#save">Salvar e recuperar</a></li>
+<li><a href="#troubleshooting">Solução de problemas</a></li>
+<li><a href="#privacy">Logs e privacidade</a></li>
+<li><a href="#license">Licença e código-fonte</a></li>
+<li><a href="#early-access">Acesso antecipado e mudanças</a></li>
+</ol>
+</nav>
+</aside>
+<main id="main" tabindex="-1">
+<header class="hero" id="top">
+<p class="eyebrow">Notação. Interpretação. Um só projeto.</p>
+<h1>MillerScore<br>Guia do usuário</h1>
+<p class="lead">MuseScore, com uma DAW integrada. Escreva a música na partitura, ajuste sua interpretação no piano roll e escolha os sons em um único espaço de trabalho conectado.</p>
+<p>Este guia cobre a série v0.1.x para Windows em acesso antecipado (Early Access). Os recursos e a compatibilidade ainda estão em desenvolvimento. Mantenha backups e leia as limitações de reprodução e de mídia externa antes de iniciar trabalhos importantes.</p>
+<p class="meta">Os nomes de menus, botões e controles são mantidos em inglês para facilitar sua localização na interface.</p>
+<div class="quick-links" aria-label="Links rápidos"><a href="#install">Começar</a><a href="#controllers">Suporte a controladores</a><a href="#troubleshooting">Resolver um problema</a></div>
+</header>
+
+<section id="install" aria-labelledby="install-title">
+<p class="eyebrow">01 · Primeiros passos</p><h2 id="install-title">Instalar e atualizar</h2>
+<p>Use a versão Windows de 64 bits da <a href="https://dulcedelechedev.itch.io/millerscore">página oficial do MillerScore no itch.io</a>. Os arquivos de código-fonte no GitHub servem para compilar o aplicativo; não são uma instalação Windows pronta para executar.</p>
+<h3>Instalar pelo aplicativo itch</h3>
+<ol>
+<li>Instale o <a href="https://itch.io/app">aplicativo itch</a> a partir do itch.io.</li>
+<li>Entre na conta itch.io que tem acesso ao MillerScore. Se o download estiver vinculado a uma compra ou chave de download, use a conta associada a esse acesso.</li>
+<li>Abra o MillerScore no aplicativo itch, escolha <strong lang="en">Install</strong> e selecione a versão Windows e a pasta de instalação.</li>
+<li>Inicie o MillerScore pela entrada instalada. Guarde seus projetos e arquivos de áudio fora da pasta de instalação do aplicativo.</li>
+</ol>
+<p>O aplicativo itch gerencia sua própria autenticação e verifica atualizações dos downloads instalados por ele. Um ZIP baixado pelo navegador é uma instalação separada. Consulte o <a href="https://itch.io/docs/itch/using/downloading.html">guia de downloads</a> e o <a href="https://itch.io/docs/itch/integrating/updates.html">guia de atualizações</a> do itch.io.</p>
+<h3>Instalar um ZIP manualmente</h3>
+<ol>
+<li>Baixe o ZIP para Windows na sua página de downloads do itch.io.</li>
+<li>No Explorador de Arquivos, use <strong lang="en">Extract All</strong> (Extrair Tudo) para descompactar o arquivo inteiro em uma nova pasta.</li>
+<li>Abra a pasta extraída e execute <code>MillerScore.exe</code>. Mantenha juntas as pastas do aplicativo e as DLLs que o acompanham. Não execute o programa de dentro do ZIP.</li>
+<li>Crie ou abra uma partitura pequena, salve, reabra e confira o áudio antes de usar seus projetos principais.</li>
+</ol>
+<p>Para atualizar uma instalação manual, feche o MillerScore, faça backup dos projetos e da mídia e extraia o ZIP mais recente em outra pasta. Inicie a nova cópia e confira uma cópia de um projeto antes de deixar de usar a instalação anterior.</p>
+<h3>O que faz a verificação de atualizações do aplicativo</h3>
+<p><strong lang="en">Help &gt; Check for update</strong> lê informações de versões no serviço público GitHub Releases. A verificação não entra na sua conta itch.io nem concede acesso a downloads pagos. Para versões distribuídas pelo itch.io, aceitar a atualização abre o fluxo de instalação do aplicativo itch. Se o link do itch não abrir, a verificação tenta abrir a página oficial do MillerScore no itch.io pelo navegador.</p>
+<p>Você ainda precisa da conta itch.io correta e de um download compatível disponível. Um anúncio de versão no GitHub, por si só, não comprova que um pacote foi enviado ao itch. Se não for possível obter a atualização, abra diretamente sua biblioteca itch ou sua página de downloads.</p>
+<p>As verificações automáticas podem ser desativadas em <strong lang="en">Preferences &gt; General &gt; Updates</strong>. Downloads de pacotes em segundo plano ficam desativados por padrão; o aplicativo itch tem suas próprias configurações de atualização.</p>
+</section>
+
+<section id="audio" aria-labelledby="audio-title">
+<p class="eyebrow">02 · Ouça sua partitura</p><h2 id="audio-title">Primeira execução e áudio</h2>
+<ol>
+<li>Crie uma partitura curta com um instrumento ou abra uma cópia de uma partitura existente.</li>
+<li>Abra <strong lang="en">Edit &gt; Preferences &gt; Audio &amp; MIDI</strong>.</li>
+<li>Escolha um <strong lang="en">Audio driver</strong> e um <strong lang="en">Audio device</strong> disponíveis. Para gravar, escolha um driver ASIO com canais de entrada.</li>
+<li>Escolha um tamanho de buffer que seu dispositivo consiga manter. Se ouvir estalos ou interrupções, tente um buffer maior; buffers menores podem reduzir o atraso, mas exigem processamento mais confiável.</li>
+<li>Confirme que há um som atribuído ao instrumento e pressione <span lang="en">Play</span> na barra de reprodução do aplicativo. Confira o volume da saída do sistema e seus alto-falantes ou fones de ouvido.</li>
+</ol>
+<p>A disponibilidade de dispositivos e drivers depende do Windows e da sua interface. A seleção de entrada ou saída MIDI é separada da saída de áudio. Conectar um teclado MIDI não instala uma biblioteca sonora.</p>
+<div class="note"><p><strong>Comece com uma SoundFont.</strong> Uma SoundFont funcionando é uma boa referência para isolar problemas de dispositivo, VST3 ou da opção Muse Sounds.</p></div>
+</section>
+
+<section id="linked-project" aria-labelledby="linked-title">
+<p class="eyebrow">03 · Uma única fonte musical</p><h2 id="linked-title">Partitura e DAW permanecem conectadas</h2>
+<p>Use o seletor de visualização <strong lang="en">Score / DAW</strong> acima do documento para mudar de espaço de trabalho. A partitura fornece notas, ritmo, partes, vozes, ligaduras de prolongamento e articulações escritas. As pistas da DAW representam esses instrumentos da partitura. O piano roll mostra as mesmas notas, com alterações opcionais de reprodução sobrepostas a elas.</p>
+<div class="cards">
+<div class="card"><h3>Modo <span lang="en">Notes</span></h3><p>Edite a música: altura, posição na partitura, duração escrita e criação ou exclusão de notas. A notação acompanha a edição.</p></div>
+<div class="card"><h3>Modo <span lang="en">Performance</span></h3><p>Ajuste a reprodução das notas existentes: intensidade (<span lang="en">velocity</span>), deslocamentos de tempo e duração sonora, quando esses ajustes forem compatíveis. A partitura escrita permanece no lugar.</p></div>
+</div>
+<p>Escolha o modo antes de arrastar. Um deslocamento de tempo na reprodução não move a nota escrita para outro tempo. Uma substituição de duração sonora não altera sua duração na notação.</p>
+<p>As duas visualizações usam os controles de reprodução do aplicativo. A seleção de pistas e notas conecta a DAW à partitura, e as edições compatíveis de partitura e interpretação participam do desfazer/refazer do projeto. Salve o projeto nativo para manter seus dados de interpretação.</p>
+<div class="note"><p><strong>Mantenha o projeto nativo.</strong> MIDI, MusicXML, PDFs e áudio exportados têm finalidades diferentes. Não presuma que preservam todas as substituições da DAW, curvas de controladores, atribuições sonoras, efeitos ou referências a clipes externos.</p></div>
+</section>
+
+<section id="piano-roll" aria-labelledby="piano-title">
+<p class="eyebrow">04 · Ajuste a interpretação</p><h2 id="piano-title">Edição no piano roll</h2>
+<ol>
+<li>Abra a visualização DAW e selecione uma pista de instrumento da partitura. As notas projetadas da partitura aparecem no piano roll.</li>
+<li>Escolha o modo <strong lang="en">Notes</strong> ou <strong lang="en">Performance</strong>. Use a grade e o controle <strong lang="en">Snap</strong> para posicionar.</li>
+<li>Clique em uma nota para selecioná-la. <kbd>Ctrl</kbd> + clique adiciona ou remove uma nota da seleção; <kbd>Shift</kbd> + clique seleciona um intervalo no tempo. Selecione várias pistas para ver suas notas juntas.</li>
+<li>No modo <span lang="en">Notes</span>, use a ferramenta de desenho para criar notas na pista principal selecionada. Arraste para editar a altura ou a posição e redimensione para mudar a duração escrita quando a partitura permitir a edição.</li>
+<li>No modo <span lang="en">Performance</span>, arraste ou redimensione notas existentes para mudar o tempo de reprodução ou a duração sonora. Use a faixa de controles para uma propriedade de nota compatível.</li>
+<li>Ouça a alteração, use <span lang="en">Undo</span> se necessário e salve e reabra uma cópia do projeto para confirmar o resultado.</li>
+</ol>
+<p>O seletor de controles inclui faixas dedicadas de intensidade da nota (note velocity), ajuste fino de altura da nota (note fine pitch), panorama do canal (channel pan), volume do canal (channel volume) e altura do canal (channel pitch). Os controles indisponíveis explicam suas limitações no seletor. Panorama por nota, intensidade de soltura (release velocity), frequência de corte e ressonância de filtro por nota estão indisponíveis no momento.</p>
+<p>A intensidade independente por nota está disponível para reprodução com SoundFont e VST3 compatível. Ela fica desativada para Muse Sounds porque sua interface atual de reprodução não expõe intensidades independentes para notas simultâneas.</p>
+<p>A notação complexa continua seguindo as regras de edição da partitura. Ligaduras de prolongamento, notas de ornamento, quiálteras e reprodução gerada de ornamentos exigem atenção especial; o piano roll não é um arranjo MIDI separado e sem limites.</p>
+</section>
+
+<section id="controllers" aria-labelledby="controllers-title">
+<p class="eyebrow">05 · Confira os rótulos de suporte</p><h2 id="controllers-title">Controladores MIDI: de CC0 a CC127</h2>
+<p>O seletor de controladores cataloga todos os 128 números MIDI Control Change, com identidades de faixa separadas e estáveis. O valor de um controlador é um inteiro de 7 bits, de <strong>0 a 127</strong>. As faixas seguras podem armazenar pontos de automação do projeto; as faixas protegidas, que dependem de estado ou controlam o modo do canal, podem ser consultadas, mas bloqueiam edições.</p>
+<div class="note warning"><p><strong>A automação genérica de CC é enviada somente ao MS Basic/SoundFont.</strong> As 108 faixas numeradas editáveis enviam valores brutos de 7 bits, de 0 a 127, durante a reprodução principal da partitura. Use CC7 para volume, CC10 para panorama, CC11 para expressão e CC64 para sustain; a resposta audível depende do instrumento da SoundFont. Alguns controladores, incluindo números indefinidos e pares LSB, podem ser ignorados. Testes de exportação WAV no aplicativo confirmam CC7, CC10, CC11 e CC64. As 20 faixas protegidas nunca são enviadas. Muse Sounds, VST3 e saída MIDI externa não recebem essas faixas genéricas.</p>
+<p>Uma faixa CC11 substitui as mensagens de expressão da notação, e faixas CC64/CC66 substituem as mensagens de sustain/sostenuto da notação, nos canais correspondentes enquanto a faixa estiver presente. A pré-escuta de notas não aplica automação genérica de CC; use a reprodução principal para ouvi-la. Os controles dedicados <strong lang="en">Channel volume</strong>, <strong lang="en">Channel panning</strong> e <strong lang="en">Channel pitch</strong> mantêm seus caminhos separados de reprodução.</p></div>
+<p>Visualizar uma faixa não envia seu comando MIDI. As curvas de CC se aplicam à pista de instrumento selecionada. Selecione o controlador pelo número e pelo nome, edite seus pontos e use <span lang="en">Undo/Redo</span> para alterações de curva compatíveis. Abrir outra faixa não deve ser usado como comando de reinicialização ou de emergência (panic).</p>
+<h3 id="cc-drawing-title">Desenhe a automação de CC</h3>
+<ol>
+<li>Abra <strong lang="en">DAW</strong> e <strong lang="en">Piano Roll</strong>, selecione uma pista de instrumento e escolha um controlador em <strong lang="en">Control</strong>, como <strong lang="en">Common CC → CC7 — Channel Volume</strong>.</li>
+<li>Clique em <strong lang="en">Pencil</strong>, ao lado de Control. Clique ou arraste na faixa abaixo das notas para desenhar pontos em degraus.</li>
+<li>Segure <kbd>Alt</kbd> enquanto arrasta para desenhar uma curva contínua. Alt+arrastar também desenha temporariamente com o lápis desligado.</li>
+<li>Solte o mouse para aplicar o traço inteiro. <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz em uma única etapa; <kbd>Esc</kbd> cancela um traço ainda em andamento.</li>
+</ol>
+<p>O traço substitui os pontos existentes apenas dentro do intervalo de tempo desenhado. Os pontos fora dele são preservados. O desenho também segue a grade temporal; desligue <strong lang="en">Snap</strong> para detalhes mais finos à mão livre. Desligue Pencil para selecionar e mover pontos. Um clique duplo no espaço vazio adiciona um ponto; selecione um ponto e pressione <kbd>Delete</kbd> para removê-lo. Trocar de pista ou controlador cancela um traço ainda em andamento.</p>
+<p>O gesto segue o lápis documentado pelo Logic Pro com a configuração de Option para curvas, usando Alt no Windows. Veja o <a href="https://support.apple.com/guide/logicpro/add-automation-points-lgcpb1a3327b/mac">guia de desenho de automação da Apple</a>. Curvar um segmento existente com <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+arrastar é um gesto separado.</p>
+<!-- cc-visuals:start -->
+<h3 id="cc-visuals-title">Entenda uma faixa de CC</h3>
+<p>Três diagramas para ler uma faixa, acompanhar a curva e distinguir controles comuns.</p>
+<div class="cc-visuals" aria-labelledby="cc-visuals-title">
+<figure>
+<h4>1 · Escolha a fonte sonora</h4>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img" aria-labelledby="cc-visual-path-pt-br-title" aria-describedby="cc-visual-path-pt-br-desc" focusable="false" lang="pt-BR">
+<title id="cc-visual-path-pt-br-title">O caminho dos controladores no MS Basic</title>
+<desc id="cc-visual-path-pt-br-desc">108 números de controlador editáveis podem ser enviados ao MS Basic. O instrumento da SoundFont determina o efeito. Os 20 controladores protegidos nunca são enviados. Muse Sounds, VST3 e MIDI externo não aceitam essas faixas genéricas.</desc>
+<rect width="320" height="460" rx="8" fill="#1b1d21"/><g font-family="system-ui, -apple-system, Segoe UI, sans-serif"><rect x="10" y="10" width="300" height="54" rx="10" fill="#1b1d21" stroke="#efc66c" stroke-width="1.5"/><text x="160" y="44" font-size="20" fill="#efc66c" font-weight="650" text-anchor="middle">108 faixas de CC editáveis</text><line x1="160" y1="72" x2="160" y2="96" stroke="#efc66c" stroke-width="3"/><path d="M154 90 L160 97 L166 90" fill="none" stroke="#efc66c" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="108" width="300" height="62" rx="10" fill="#1b1d21" stroke="#efc66c" stroke-width="1.5"/><text x="160" y="136" font-size="23" fill="#f2eee6" font-weight="650" text-anchor="middle">MS Basic</text><text x="160" y="160" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">Reprodução com SoundFont</text><line x1="160" y1="180" x2="160" y2="204" stroke="#efc66c" stroke-width="3"/><path d="M154 198 L160 205 L166 198" fill="none" stroke="#efc66c" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="218" width="300" height="54" rx="10" fill="#1b1d21" stroke="#efc66c" stroke-width="1.5"/><text x="160" y="252" font-size="20" fill="#f2eee6" font-weight="650" text-anchor="middle">Instrumento selecionado</text><text x="160" y="300" font-size="18" fill="#c0bbb2" font-weight="400" text-anchor="middle">A resposta depende</text><text x="160" y="324" font-size="18" fill="#c0bbb2" font-weight="400" text-anchor="middle">do som escolhido.</text><rect x="10" y="344" width="300" height="56" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5" stroke-dasharray="5 4"/><text x="160" y="368" font-size="18" fill="#f2eee6" font-weight="600" text-anchor="middle">20 controladores protegidos</text><text x="160" y="390" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">Nunca enviados</text><text x="160" y="425" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="middle">Outras fontes: sem CC genérico</text><text x="160" y="446" font-size="14" fill="#c0bbb2" font-weight="400" text-anchor="middle">Muse Sounds · VST3 · MIDI externo</text></g>
+</svg>
+<figcaption>No MS Basic, os 108 números de CC editáveis têm um caminho de reprodução. O instrumento pode ignorar controles que não implementa. Os 20 números protegidos nunca são enviados.</figcaption>
+</figure>
+<figure>
+<h4>2 · Molde o controle no tempo</h4>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img" aria-labelledby="cc-visual-curve-pt-br-title" aria-describedby="cc-visual-curve-pt-br-desc" focusable="false" lang="pt-BR">
+<title id="cc-visual-curve-pt-br-title">Exemplo de curva de controlador ao longo do tempo</title>
+<desc id="cc-visual-curve-pt-br-desc">Um exemplo de CC7 tem quatro pontos com valores 100, 40, 70 e 110. O tempo avança da esquerda para a direita e o controle muda entre os pontos. São valores ilustrativos, não uma captura nem áudio medido.</desc>
+<rect width="320" height="460" rx="8" fill="#1b1d21"/><g font-family="system-ui, -apple-system, Segoe UI, sans-serif"><text x="160" y="30" font-size="22" fill="#efc66c" font-weight="650" text-anchor="middle">Exemplo: CC7</text><text x="15" y="64" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="start">Valor</text><line x1="49" y1="92" x2="306" y2="92" stroke="#56524a" stroke-width="1" stroke-dasharray="3 5"/><text x="38" y="97" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">127</text><line x1="49" y1="206" x2="306" y2="206" stroke="#56524a" stroke-width="1" stroke-dasharray="3 5"/><text x="38" y="211" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">64</text><line x1="49" y1="322" x2="306" y2="322" stroke="#56524a" stroke-width="1" stroke-dasharray="3 5"/><text x="38" y="327" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">0</text><line x1="49" y1="80" x2="49" y2="322" stroke="#c0bbb2" stroke-width="1.5"/><line x1="49" y1="322" x2="306" y2="322" stroke="#c0bbb2" stroke-width="1.5"/><path d="M62 142 L140 250 L218 196 L296 124" fill="none" stroke="#efc66c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="62" cy="142" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="62" y="128" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">100</text><circle cx="140" cy="250" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="140" y="236" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">40</text><circle cx="218" cy="196" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="218" y="182" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">70</text><circle cx="296" cy="124" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="296" y="110" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">110</text><text x="49" y="348" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="start">Antes</text><text x="306" y="348" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">Depois</text><text x="178" y="347" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">Tempo →</text><text x="160" y="386" font-size="18" fill="#f2eee6" font-weight="400" text-anchor="middle">Cada ponto define um valor</text><text x="160" y="410" font-size="18" fill="#f2eee6" font-weight="400" text-anchor="middle">para este controlador.</text><text x="160" y="430" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">Conforme a música avança,</text><text x="160" y="454" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">o valor segue a curva.</text></g>
+</svg>
+<figcaption>Cada ponto pertence a um controlador numerado de uma pista de instrumento. Alterar a curva muda o controle ao longo do tempo; não move as notas.</figcaption>
+</figure>
+<figure>
+<h4>3 · Comece com quatro controles</h4>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img" aria-labelledby="cc-visual-controls-pt-br-title" aria-describedby="cc-visual-controls-pt-br-desc" focusable="false" lang="pt-BR">
+<title id="cc-visual-controls-pt-br-title">Volume, expressão, panorama e sustentação</title>
+<desc id="cc-visual-controls-pt-br-desc">CC7 muda o volume do instrumento. CC11 molda a expressão dentro de uma frase. CC10 posiciona o som à esquerda ou à direita. CC64 é sustain: de 0 a 63 significa desligado, de 64 a 127 significa ligado. O suporte depende do instrumento.</desc>
+<rect width="320" height="460" rx="8" fill="#1b1d21"/><g font-family="system-ui, -apple-system, Segoe UI, sans-serif"><rect x="10" y="8" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="35" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC7</text><text x="85" y="35" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Volume</text><text x="25" y="60" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Nível geral do instrumento</text><line x1="28" y1="86" x2="291" y2="86" stroke="#56524a" stroke-width="7"/><line x1="28" y1="86" x2="203" y2="86" stroke="#efc66c" stroke-width="7"/><circle cx="203" cy="86" r="7" fill="#f2eee6"/><rect x="10" y="122" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="149" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC11</text><text x="85" y="149" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Expressão</text><text x="25" y="174" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Molde o nível da frase</text><line x1="28" y1="200" x2="291" y2="200" stroke="#56524a" stroke-width="7"/><line x1="28" y1="200" x2="155" y2="200" stroke="#efc66c" stroke-width="7"/><circle cx="155" cy="200" r="7" fill="#f2eee6"/><rect x="10" y="236" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="263" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC10</text><text x="85" y="263" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Panorama</text><text x="25" y="288" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Posicione à esquerda ou direita</text><text x="26" y="320" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">E</text><text x="292" y="320" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="end">D</text><line x1="53" y1="314" x2="267" y2="314" stroke="#56524a" stroke-width="5"/><line x1="160" y1="305" x2="160" y2="323" stroke="#c0bbb2" stroke-width="1"/><circle cx="120" cy="314" r="7" fill="#efc66c"/><rect x="10" y="350" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="377" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC64</text><text x="85" y="377" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Pedal de sustentação</text><text x="25" y="402" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Sustente após soltar as notas</text><text x="25" y="434" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="start">0–63 Desl.</text><text x="290" y="434" font-size="17" fill="#efc66c" font-weight="650" text-anchor="end">64–127 Lig.</text></g>
+</svg>
+<figcaption>CC7: volume. CC11: expressão. CC10: panorama. CC64: sustain, desligado em 0–63 e ligado em 64–127. Esses controles do instrumento são separados dos ajustes do mixer.</figcaption>
+</figure>
+</div>
+<!-- cc-visuals:end -->
+<h3>Categorias e proteção</h3>
+<div class="cards">
+<div class="card"><h3>Banco e programa — protegidos</h3><p><strong>CC0 e CC32.</strong> Bank Select MSB/LSB selecionam um banco quando combinados com uma mensagem separada de Program Change. Program Change não é um CC. Mudanças de banco podem selecionar outro preset; por isso, essas faixas que dependem de estado ficam somente para leitura até que exista um fluxo ordenado de banco/programa.</p></div>
+<div class="card"><h3>Controladores de interpretação</h3><p>Modulação, sopro, pedal de controle, tempo de portamento, volume, balanço, panorama, expressão e seus pares LSB definidos. O significado depende do instrumento. <strong>CC84</strong>, controle de portamento, e <strong>CC88</strong>, prefixo de intensidade de alta resolução, dependem de um evento de nota seguinte; por isso, sua edição é protegida.</p></div>
+<div class="card"><h3>Uso geral</h3><p><strong>CC16–19, CC48–51, CC80–83.</strong> Podem receber uma função no dispositivo receptor. Seus números não garantem um controle ou uma função audível específica.</p></div>
+<div class="card"><h3>Pedais e interruptores</h3><p><strong>CC64–69.</strong> Sustain, portamento ligado/desligado, sostenuto, pedal abafador, pedal de legato e Hold 2. Valores abaixo de 64 significam desligado; de 64 a 127, ligado. Esses bytes editáveis são enviados somente ao MS Basic/SoundFont, e o instrumento pode ignorar um pedal que não implemente. Uma faixa CC64 assume as mensagens de sustain da notação; uma faixa CC66 assume as mensagens de sostenuto da notação nos canais correspondentes enquanto estiver presente.</p></div>
+<div class="card"><h3>Controladores de som</h3><p><strong>CC70–79.</strong> Variação, timbre, soltura, ataque, brilho, decaimento, taxa/profundidade/atraso do vibrato e Sound Controller 10. O receptor pode interpretá-los ou ignorá-los.</p></div>
+<div class="card"><h3>Efeitos</h3><p><strong>CC12–13, CC44–45, CC91–95.</strong> Controle de efeito e profundidades de efeitos, como reverb ou chorus. Essas faixas genéricas não configuram a cadeia de efeitos nem os envios do mixer do MillerScore.</p></div>
+<div class="card"><h3>Entrada de dados — protegida</h3><p><strong>CC6, CC38, CC96, CC97.</strong> Data Entry MSB/LSB e incremento/decremento atuam sobre um parâmetro selecionado. Valores isolados podem modificar configurações não pretendidas. A edição é bloqueada.</p></div>
+<div class="card"><h3>Seleção RPN/NRPN — protegida</h3><p><strong>CC98–101.</strong> Seletores de parâmetros registrados e não registrados formam sequências ordenadas que dependem de estado junto com a entrada de dados. Esta versão não oferece um editor semântico de sequências RPN/NRPN. A edição é bloqueada.</p></div>
+<div class="card"><h3>Indefinidos/reservados</h3><p>Números sem função definida são exibidos pelo número do CC. Um dispositivo pode atribuir um significado próprio. Poder armazenar edições não implica um som padronizado nem suporte do receptor; consulte o manual do receptor.</p></div>
+<div class="card"><h3>Modo do canal — protegido</h3><p><strong>CC120–127.</strong> All Sound Off, Reset All Controllers, Local Control, All Notes Off, Omni Off/On, Mono On e Poly On. Podem silenciar notas, reinicializar o estado ou mudar o roteamento. A edição é bloqueada; são comandos, não curvas contínuas comuns.</p></div>
+</div>
+<h3>Faixas de 7 bits e dados pareados de 14 bits</h3>
+<p>CC0–31 são as posições MSB e CC32–63 são suas posições LSB no intervalo de controladores pareados. Quando um receptor aceita um par definido, seu valor de 14 bits é <code>128 × MSB + LSB</code>, de 0 a 16383. Posições indefinidas não ganham um significado padronizado apenas por estarem nesse intervalo.</p>
+<p>O MillerScore armazena faixas numeradas pareadas como valores separados de 0 a 127 e envia cada faixa editável como seu próprio byte de 7 bits ao MS Basic/SoundFont. Os metadados de pareamento não garantem um controle combinado automático de 14 bits, interpolação de 14 bits nem uma resposta específica do receptor. Os seletores RPN/NRPN CC98–101 mantêm metadados pareados de seleção de parâmetros, mas continuam somente para leitura e nunca são enviados pela automação genérica. CC88 é uma mensagem especial de prefixo de intensidade, não um par MSB/LSB desse intervalo, e também é protegido. As faixas genéricas de CC da DAW não têm suporte na exportação de Standard MIDI File (SMF).</p>
+<details id="cc-reference">
+<summary>Abrir a referência completa de CC0–CC127</summary>
+<p class="meta">Os padrões do editor abaixo descrevem o valor inicial do catálogo, não um valor universal de reinicialização de dispositivos MIDI. Todas as faixas armazenam bytes de 0 a 127; os comandos podem ter significados mais restritos, indicados abaixo. “Protegido” bloqueia alterações e essas 20 faixas nunca são enviadas. “Editável” significa armazenamento no projeto e envio durante a reprodução principal somente ao MS Basic/SoundFont; o instrumento pode ignorar controladores individuais. Não há roteamento genérico para Muse Sounds, VST3 ou saída MIDI externa, nem na exportação SMF. Os nomes em inglês são incluídos para consulta na interface.</p>
+<div class="table-wrap" role="region" aria-label="Referência completa dos controladores MIDI, com rolagem horizontal" tabindex="0">
+<table class="cc-table">
+<caption>Todas as 128 faixas numeradas de controladores</caption>
+<thead><tr><th scope="col">CC</th><th scope="col">Controlador</th><th scope="col">Categoria</th><th scope="col">Padrão</th><th scope="col">Par</th><th scope="col">Significado do valor</th><th scope="col">Edição</th></tr></thead>
+<tbody>
+<!-- CC_REFERENCE_ROWS_BEGIN -->
+<tr data-cc="0"><th scope="row">CC0</th><td>Seleção de banco<br><span class="meta" lang="en">Bank Select</span></td><td>Banco e programa</td><td>0</td><td>LSB CC32</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="1"><th scope="row">CC1</th><td>Roda de modulação<br><span class="meta" lang="en">Modulation Wheel</span></td><td>Interpretação</td><td>0</td><td>LSB CC33</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="2"><th scope="row">CC2</th><td>Controlador de sopro<br><span class="meta" lang="en">Breath Controller</span></td><td>Interpretação</td><td>0</td><td>LSB CC34</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="3"><th scope="row">CC3</th><td>CC 3</td><td>Indefinido</td><td>0</td><td>LSB CC35</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="4"><th scope="row">CC4</th><td>Controlador de pedal<br><span class="meta" lang="en">Foot Controller</span></td><td>Interpretação</td><td>0</td><td>LSB CC36</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="5"><th scope="row">CC5</th><td>Tempo de portamento<br><span class="meta" lang="en">Portamento Time</span></td><td>Interpretação</td><td>0</td><td>LSB CC37</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="6"><th scope="row">CC6</th><td>Entrada de dados<br><span class="meta" lang="en">Data Entry</span></td><td>Entrada de dados</td><td>0</td><td>LSB CC38</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="7"><th scope="row">CC7</th><td>Volume do canal<br><span class="meta" lang="en">Channel Volume</span></td><td>Interpretação</td><td>0</td><td>LSB CC39</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="8"><th scope="row">CC8</th><td>Balanço<br><span class="meta" lang="en">Balance</span></td><td>Interpretação</td><td>64</td><td>LSB CC40</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="9"><th scope="row">CC9</th><td>CC 9</td><td>Indefinido</td><td>0</td><td>LSB CC41</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="10"><th scope="row">CC10</th><td>Panorama<br><span class="meta" lang="en">Pan</span></td><td>Interpretação</td><td>64</td><td>LSB CC42</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="11"><th scope="row">CC11</th><td>Controlador de expressão<br><span class="meta" lang="en">Expression Controller</span></td><td>Interpretação</td><td>0</td><td>LSB CC43</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="12"><th scope="row">CC12</th><td>Controle de efeito 1<br><span class="meta" lang="en">Effect Control 1</span></td><td>Efeitos</td><td>0</td><td>LSB CC44</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="13"><th scope="row">CC13</th><td>Controle de efeito 2<br><span class="meta" lang="en">Effect Control 2</span></td><td>Efeitos</td><td>0</td><td>LSB CC45</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="14"><th scope="row">CC14</th><td>CC 14</td><td>Indefinido</td><td>0</td><td>LSB CC46</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="15"><th scope="row">CC15</th><td>CC 15</td><td>Indefinido</td><td>0</td><td>LSB CC47</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="16"><th scope="row">CC16</th><td>Controlador de uso geral 1<br><span class="meta" lang="en">General Purpose Controller 1</span></td><td>Uso geral</td><td>0</td><td>LSB CC48</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="17"><th scope="row">CC17</th><td>Controlador de uso geral 2<br><span class="meta" lang="en">General Purpose Controller 2</span></td><td>Uso geral</td><td>0</td><td>LSB CC49</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="18"><th scope="row">CC18</th><td>Controlador de uso geral 3<br><span class="meta" lang="en">General Purpose Controller 3</span></td><td>Uso geral</td><td>0</td><td>LSB CC50</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="19"><th scope="row">CC19</th><td>Controlador de uso geral 4<br><span class="meta" lang="en">General Purpose Controller 4</span></td><td>Uso geral</td><td>0</td><td>LSB CC51</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="20"><th scope="row">CC20</th><td>CC 20</td><td>Indefinido</td><td>0</td><td>LSB CC52</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="21"><th scope="row">CC21</th><td>CC 21</td><td>Indefinido</td><td>0</td><td>LSB CC53</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="22"><th scope="row">CC22</th><td>CC 22</td><td>Indefinido</td><td>0</td><td>LSB CC54</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="23"><th scope="row">CC23</th><td>CC 23</td><td>Indefinido</td><td>0</td><td>LSB CC55</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="24"><th scope="row">CC24</th><td>CC 24</td><td>Indefinido</td><td>0</td><td>LSB CC56</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="25"><th scope="row">CC25</th><td>CC 25</td><td>Indefinido</td><td>0</td><td>LSB CC57</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="26"><th scope="row">CC26</th><td>CC 26</td><td>Indefinido</td><td>0</td><td>LSB CC58</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="27"><th scope="row">CC27</th><td>CC 27</td><td>Indefinido</td><td>0</td><td>LSB CC59</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="28"><th scope="row">CC28</th><td>CC 28</td><td>Indefinido</td><td>0</td><td>LSB CC60</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="29"><th scope="row">CC29</th><td>CC 29</td><td>Indefinido</td><td>0</td><td>LSB CC61</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="30"><th scope="row">CC30</th><td>CC 30</td><td>Indefinido</td><td>0</td><td>LSB CC62</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="31"><th scope="row">CC31</th><td>CC 31</td><td>Indefinido</td><td>0</td><td>LSB CC63</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="32"><th scope="row">CC32</th><td>Seleção de banco LSB<br><span class="meta" lang="en">Bank Select LSB</span></td><td>Banco e programa</td><td>0</td><td>MSB CC0</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="33"><th scope="row">CC33</th><td>Roda de modulação LSB<br><span class="meta" lang="en">Modulation Wheel LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC1</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="34"><th scope="row">CC34</th><td>Controlador de sopro LSB<br><span class="meta" lang="en">Breath Controller LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC2</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="35"><th scope="row">CC35</th><td>CC 35</td><td>Indefinido</td><td>0</td><td>MSB CC3</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="36"><th scope="row">CC36</th><td>Controlador de pedal LSB<br><span class="meta" lang="en">Foot Controller LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC4</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="37"><th scope="row">CC37</th><td>Tempo de portamento LSB<br><span class="meta" lang="en">Portamento Time LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC5</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="38"><th scope="row">CC38</th><td>Entrada de dados LSB<br><span class="meta" lang="en">Data Entry LSB</span></td><td>Entrada de dados</td><td>0</td><td>MSB CC6</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="39"><th scope="row">CC39</th><td>Volume do canal LSB<br><span class="meta" lang="en">Channel Volume LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC7</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="40"><th scope="row">CC40</th><td>Balanço LSB<br><span class="meta" lang="en">Balance LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC8</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="41"><th scope="row">CC41</th><td>CC 41</td><td>Indefinido</td><td>0</td><td>MSB CC9</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="42"><th scope="row">CC42</th><td>Panorama LSB<br><span class="meta" lang="en">Pan LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC10</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="43"><th scope="row">CC43</th><td>Controlador de expressão LSB<br><span class="meta" lang="en">Expression Controller LSB</span></td><td>Interpretação</td><td>0</td><td>MSB CC11</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="44"><th scope="row">CC44</th><td>Controle de efeito 1 LSB<br><span class="meta" lang="en">Effect Control 1 LSB</span></td><td>Efeitos</td><td>0</td><td>MSB CC12</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="45"><th scope="row">CC45</th><td>Controle de efeito 2 LSB<br><span class="meta" lang="en">Effect Control 2 LSB</span></td><td>Efeitos</td><td>0</td><td>MSB CC13</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="46"><th scope="row">CC46</th><td>CC 46</td><td>Indefinido</td><td>0</td><td>MSB CC14</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="47"><th scope="row">CC47</th><td>CC 47</td><td>Indefinido</td><td>0</td><td>MSB CC15</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="48"><th scope="row">CC48</th><td>Controlador de uso geral 1 LSB<br><span class="meta" lang="en">General Purpose Controller 1 LSB</span></td><td>Uso geral</td><td>0</td><td>MSB CC16</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="49"><th scope="row">CC49</th><td>Controlador de uso geral 2 LSB<br><span class="meta" lang="en">General Purpose Controller 2 LSB</span></td><td>Uso geral</td><td>0</td><td>MSB CC17</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="50"><th scope="row">CC50</th><td>Controlador de uso geral 3 LSB<br><span class="meta" lang="en">General Purpose Controller 3 LSB</span></td><td>Uso geral</td><td>0</td><td>MSB CC18</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="51"><th scope="row">CC51</th><td>Controlador de uso geral 4 LSB<br><span class="meta" lang="en">General Purpose Controller 4 LSB</span></td><td>Uso geral</td><td>0</td><td>MSB CC19</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="52"><th scope="row">CC52</th><td>CC 52</td><td>Indefinido</td><td>0</td><td>MSB CC20</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="53"><th scope="row">CC53</th><td>CC 53</td><td>Indefinido</td><td>0</td><td>MSB CC21</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="54"><th scope="row">CC54</th><td>CC 54</td><td>Indefinido</td><td>0</td><td>MSB CC22</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="55"><th scope="row">CC55</th><td>CC 55</td><td>Indefinido</td><td>0</td><td>MSB CC23</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="56"><th scope="row">CC56</th><td>CC 56</td><td>Indefinido</td><td>0</td><td>MSB CC24</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="57"><th scope="row">CC57</th><td>CC 57</td><td>Indefinido</td><td>0</td><td>MSB CC25</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="58"><th scope="row">CC58</th><td>CC 58</td><td>Indefinido</td><td>0</td><td>MSB CC26</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="59"><th scope="row">CC59</th><td>CC 59</td><td>Indefinido</td><td>0</td><td>MSB CC27</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="60"><th scope="row">CC60</th><td>CC 60</td><td>Indefinido</td><td>0</td><td>MSB CC28</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="61"><th scope="row">CC61</th><td>CC 61</td><td>Indefinido</td><td>0</td><td>MSB CC29</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="62"><th scope="row">CC62</th><td>CC 62</td><td>Indefinido</td><td>0</td><td>MSB CC30</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="63"><th scope="row">CC63</th><td>CC 63</td><td>Indefinido</td><td>0</td><td>MSB CC31</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="64"><th scope="row">CC64</th><td>Pedal de sustentação (sustain)<br><span class="meta" lang="en">Damper Pedal (Sustain)</span></td><td>Pedal e interruptor</td><td>0</td><td>Nenhum</td><td>0–63 = desligado; 64–127 = ligado</td><td>Editável</td></tr>
+<tr data-cc="65"><th scope="row">CC65</th><td>Portamento ligado/desligado<br><span class="meta" lang="en">Portamento On/Off</span></td><td>Pedal e interruptor</td><td>0</td><td>Nenhum</td><td>0–63 = desligado; 64–127 = ligado</td><td>Editável</td></tr>
+<tr data-cc="66"><th scope="row">CC66</th><td>Sostenuto</td><td>Pedal e interruptor</td><td>0</td><td>Nenhum</td><td>0–63 = desligado; 64–127 = ligado</td><td>Editável</td></tr>
+<tr data-cc="67"><th scope="row">CC67</th><td>Pedal abafador (una corda)<br><span class="meta" lang="en">Soft Pedal</span></td><td>Pedal e interruptor</td><td>0</td><td>Nenhum</td><td>0–63 = desligado; 64–127 = ligado</td><td>Editável</td></tr>
+<tr data-cc="68"><th scope="row">CC68</th><td>Pedal de legato<br><span class="meta" lang="en">Legato Footswitch</span></td><td>Pedal e interruptor</td><td>0</td><td>Nenhum</td><td>0–63 = desligado; 64–127 = ligado</td><td>Editável</td></tr>
+<tr data-cc="69"><th scope="row">CC69</th><td>Sustentação 2<br><span class="meta" lang="en">Hold 2</span></td><td>Pedal e interruptor</td><td>0</td><td>Nenhum</td><td>0–63 = desligado; 64–127 = ligado</td><td>Editável</td></tr>
+<tr data-cc="70"><th scope="row">CC70</th><td>Controlador de som 1 (variação sonora)<br><span class="meta" lang="en">Sound Controller 1 (Sound Variation)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="71"><th scope="row">CC71</th><td>Controlador de som 2 (timbre/intensidade harmônica)<br><span class="meta" lang="en">Sound Controller 2 (Timbre/Harmonic Intensity)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="72"><th scope="row">CC72</th><td>Controlador de som 3 (tempo de soltura)<br><span class="meta" lang="en">Sound Controller 3 (Release Time)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="73"><th scope="row">CC73</th><td>Controlador de som 4 (tempo de ataque)<br><span class="meta" lang="en">Sound Controller 4 (Attack Time)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="74"><th scope="row">CC74</th><td>Controlador de som 5 (brilho)<br><span class="meta" lang="en">Sound Controller 5 (Brightness)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="75"><th scope="row">CC75</th><td>Controlador de som 6 (tempo de decaimento)<br><span class="meta" lang="en">Sound Controller 6 (Decay Time)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="76"><th scope="row">CC76</th><td>Controlador de som 7 (taxa de vibrato)<br><span class="meta" lang="en">Sound Controller 7 (Vibrato Rate)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="77"><th scope="row">CC77</th><td>Controlador de som 8 (profundidade de vibrato)<br><span class="meta" lang="en">Sound Controller 8 (Vibrato Depth)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="78"><th scope="row">CC78</th><td>Controlador de som 9 (atraso de vibrato)<br><span class="meta" lang="en">Sound Controller 9 (Vibrato Delay)</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="79"><th scope="row">CC79</th><td>Controlador de som 10<br><span class="meta" lang="en">Sound Controller 10</span></td><td>Controlador de som</td><td>64</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="80"><th scope="row">CC80</th><td>Controlador de uso geral 5<br><span class="meta" lang="en">General Purpose Controller 5</span></td><td>Uso geral</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="81"><th scope="row">CC81</th><td>Controlador de uso geral 6<br><span class="meta" lang="en">General Purpose Controller 6</span></td><td>Uso geral</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="82"><th scope="row">CC82</th><td>Controlador de uso geral 7<br><span class="meta" lang="en">General Purpose Controller 7</span></td><td>Uso geral</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="83"><th scope="row">CC83</th><td>Controlador de uso geral 8<br><span class="meta" lang="en">General Purpose Controller 8</span></td><td>Uso geral</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="84"><th scope="row">CC84</th><td>Controle de portamento<br><span class="meta" lang="en">Portamento Control</span></td><td>Interpretação</td><td>0</td><td>Nenhum</td><td>0–127: número da nota usado por uma sequência de portamento</td><td>Protegido</td></tr>
+<tr data-cc="85"><th scope="row">CC85</th><td>CC 85</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="86"><th scope="row">CC86</th><td>CC 86</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="87"><th scope="row">CC87</th><td>CC 87</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="88"><th scope="row">CC88</th><td>Prefixo de intensidade de alta resolução<br><span class="meta" lang="en">High Resolution Velocity Prefix</span></td><td>Interpretação</td><td>0</td><td>Nenhum</td><td>0–127: LSB de intensidade para um evento de nota seguinte</td><td>Protegido</td></tr>
+<tr data-cc="89"><th scope="row">CC89</th><td>CC 89</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="90"><th scope="row">CC90</th><td>CC 90</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="91"><th scope="row">CC91</th><td>Profundidade do efeito 1 (envio de reverb)<br><span class="meta" lang="en">Effects 1 Depth (Reverb Send)</span></td><td>Efeitos</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="92"><th scope="row">CC92</th><td>Profundidade do efeito 2 (tremolo)<br><span class="meta" lang="en">Effects 2 Depth (Tremolo)</span></td><td>Efeitos</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="93"><th scope="row">CC93</th><td>Profundidade do efeito 3 (envio de chorus)<br><span class="meta" lang="en">Effects 3 Depth (Chorus Send)</span></td><td>Efeitos</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="94"><th scope="row">CC94</th><td>Profundidade do efeito 4 (celeste/desafinação)<br><span class="meta" lang="en">Effects 4 Depth (Celeste/Detune)</span></td><td>Efeitos</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="95"><th scope="row">CC95</th><td>Profundidade do efeito 5 (phaser)<br><span class="meta" lang="en">Effects 5 Depth (Phaser)</span></td><td>Efeitos</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="96"><th scope="row">CC96</th><td>Incremento de dados<br><span class="meta" lang="en">Data Increment</span></td><td>Entrada de dados</td><td>0</td><td>Nenhum</td><td>Byte de dados ignorado; um incremento/decremento por evento</td><td>Protegido</td></tr>
+<tr data-cc="97"><th scope="row">CC97</th><td>Decremento de dados<br><span class="meta" lang="en">Data Decrement</span></td><td>Entrada de dados</td><td>0</td><td>Nenhum</td><td>Byte de dados ignorado; um incremento/decremento por evento</td><td>Protegido</td></tr>
+<tr data-cc="98"><th scope="row">CC98</th><td>Seleção de parâmetro não registrado (NRPN LSB)<br><span class="meta" lang="en">NRPN LSB</span></td><td>Seleção de parâmetros</td><td>0</td><td>MSB CC99</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="99"><th scope="row">CC99</th><td>Seleção de parâmetro não registrado (NRPN MSB)<br><span class="meta" lang="en">NRPN MSB</span></td><td>Seleção de parâmetros</td><td>0</td><td>LSB CC98</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="100"><th scope="row">CC100</th><td>Seleção de parâmetro registrado (RPN LSB)<br><span class="meta" lang="en">RPN LSB</span></td><td>Seleção de parâmetros</td><td>0</td><td>MSB CC101</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="101"><th scope="row">CC101</th><td>Seleção de parâmetro registrado (RPN MSB)<br><span class="meta" lang="en">RPN MSB</span></td><td>Seleção de parâmetros</td><td>0</td><td>LSB CC100</td><td>0–127</td><td>Protegido</td></tr>
+<tr data-cc="102"><th scope="row">CC102</th><td>CC 102</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="103"><th scope="row">CC103</th><td>CC 103</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="104"><th scope="row">CC104</th><td>CC 104</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="105"><th scope="row">CC105</th><td>CC 105</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="106"><th scope="row">CC106</th><td>CC 106</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="107"><th scope="row">CC107</th><td>CC 107</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="108"><th scope="row">CC108</th><td>CC 108</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="109"><th scope="row">CC109</th><td>CC 109</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="110"><th scope="row">CC110</th><td>CC 110</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="111"><th scope="row">CC111</th><td>CC 111</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="112"><th scope="row">CC112</th><td>CC 112</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="113"><th scope="row">CC113</th><td>CC 113</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="114"><th scope="row">CC114</th><td>CC 114</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="115"><th scope="row">CC115</th><td>CC 115</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="116"><th scope="row">CC116</th><td>CC 116</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="117"><th scope="row">CC117</th><td>CC 117</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="118"><th scope="row">CC118</th><td>CC 118</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="119"><th scope="row">CC119</th><td>CC 119</td><td>Indefinido</td><td>0</td><td>Nenhum</td><td>0–127</td><td>Editável</td></tr>
+<tr data-cc="120"><th scope="row">CC120</th><td>Desligar todos os sons<br><span class="meta" lang="en">All Sound Off</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Somente 0</td><td>Protegido</td></tr>
+<tr data-cc="121"><th scope="row">CC121</th><td>Reinicializar todos os controladores<br><span class="meta" lang="en">Reset All Controllers</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Somente 0</td><td>Protegido</td></tr>
+<tr data-cc="122"><th scope="row">CC122</th><td>Controle local ligado/desligado<br><span class="meta" lang="en">Local Control On/Off</span></td><td>Modo do canal</td><td>127</td><td>Nenhum</td><td>0 = desligado; 127 = ligado</td><td>Protegido</td></tr>
+<tr data-cc="123"><th scope="row">CC123</th><td>Desligar todas as notas<br><span class="meta" lang="en">All Notes Off</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Somente 0</td><td>Protegido</td></tr>
+<tr data-cc="124"><th scope="row">CC124</th><td>Modo Omni desligado<br><span class="meta" lang="en">Omni Mode Off</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Somente 0</td><td>Protegido</td></tr>
+<tr data-cc="125"><th scope="row">CC125</th><td>Modo Omni ligado<br><span class="meta" lang="en">Omni Mode On</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Somente 0</td><td>Protegido</td></tr>
+<tr data-cc="126"><th scope="row">CC126</th><td>Modo Mono ligado<br><span class="meta" lang="en">Mono Mode On</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Número de canais; 0 = número de vozes do receptor</td><td>Protegido</td></tr>
+<tr data-cc="127"><th scope="row">CC127</th><td>Modo Poly ligado<br><span class="meta" lang="en">Poly Mode On</span></td><td>Modo do canal</td><td>0</td><td>Nenhum</td><td>Somente 0</td><td>Protegido</td></tr>
+<!-- CC_REFERENCE_ROWS_END -->
+</tbody>
+</table>
+</div>
+</details>
+<a class="anchor-top" href="#top">Voltar à visão geral do guia</a>
+</section>
+
+<section id="sounds" aria-labelledby="sounds-title">
+<p class="eyebrow">06 · Escolha uma fonte de reprodução</p><h2 id="sounds-title">SoundFont, VST3 e Muse Sounds opcional</h2>
+<p>Selecione uma pista de instrumento na visualização DAW. O seletor <strong lang="en">Sound</strong> do inspetor da pista agrupa os recursos instalados por mecanismo de reprodução. Essa atribuição é compartilhada com o mixer. Aguarde a conclusão da busca ou da troca e ouça uma frase curta.</p>
+<h3>SoundFonts (.sf2)</h3>
+<ol>
+<li>Coloque uma SoundFont que você tenha licença para usar em uma pasta listada em <strong lang="en">Preferences &gt; Folders &gt; SoundFonts</strong>. A pasta padrão do usuário é <code>Documents\MillerScore\SoundFonts</code> para um perfil de versão de lançamento.</li>
+<li>Reinicie se a nova SoundFont não aparecer na lista e atualize a lista de sons.</li>
+<li>Escolha um preset em <strong lang="en">SoundFonts</strong> para o instrumento selecionado. Teste a reprodução, o volume e a extensão das notas.</li>
+</ol>
+<p>Uma SoundFont pode conter muitos presets; escolher um arquivo não garante um instrumento adequado nem um mapeamento correto de percussão. SoundFonts personalizadas ausentes precisam ser instaladas novamente no outro computador.</p>
+<h3>Instrumentos e efeitos VST3 compatíveis</h3>
+<ol>
+<li>Use o instalador do fabricante do plug-in para instalar um plug-in VST3 Windows de 64 bits. Instale separadamente o conteúdo de amostras exigido por ele.</li>
+<li>Confira as pastas de busca de VST3 em <strong lang="en">Preferences &gt; Folders</strong> e use o controle de nova busca depois de adicionar ou atualizar um plug-in.</li>
+<li>Escolha um instrumento no grupo de sons <strong lang="en">VST3</strong> da pista. Use o mixer para efeitos VST3 compatíveis.</li>
+<li>Abra o editor do plug-in quando disponível, carregue seu patch e teste salvar/reabrir com uma cópia do projeto.</li>
+</ol>
+<p>A compatibilidade depende do plug-in e de sua versão. O sucesso do registro não comprova estabilidade na reprodução. Uma extensão de notação na pasta <strong lang="en">Plugins</strong> é diferente de um plug-in de áudio VST3. Ativação, licenciamento e serviços de rede do fabricante são responsabilidade dele.</p>
+<h3>Muse Sounds é opcional</h3>
+<p>As bibliotecas sonoras Muse Sounds e o runtime MuseSampler são distribuídos separadamente por seu fornecedor. O MillerScore não inclui conteúdo proprietário do Muse Sounds. Se optar por instalá-lo, siga as instruções de instalação e os termos do fornecedor.</p>
+<p>Quando um runtime compatível e bibliotecas instaladas são encontrados, os recursos disponíveis aparecem em <strong lang="en">Muse Sounds</strong>. Se nenhum aparecer, use uma SoundFont ou uma fonte VST3 compatível. A ausência desse componente opcional não comprova que o MillerScore foi instalado incorretamente.</p>
+<p>A seleção do perfil sonoro de novos projetos pode recorrer ao perfil básico de SoundFont quando Muse Sounds está indisponível. Não presuma que todas as atribuições de Muse Sounds salvas anteriormente são substituídas automaticamente em outro computador. Uma atribuição ausente é mantida e exibida como indisponível; escolha explicitamente uma fonte instalada quando necessário.</p>
+<div class="note"><p><strong>Limitações atuais de integração.</strong> A intensidade independente por nota está indisponível para Muse Sounds. A automação genérica de CC da DAW tem suporte somente no MS Basic/SoundFont e não é enviada ao Muse Sounds nem ao VST3. Reprodução, reposicionamento, repetição em loop, troca de fonte e compatibilidade do mixer com um runtime proprietário específico ainda precisam de validação nessa instalação.</p></div>
+<p>Se a lista de sons não carregar, use <strong lang="en">Refresh list</strong>. Um recurso ausente ou com falha deve ser investigado antes de alterar a atribuição salva. Salve uma cópia se precisar substituir uma fonte para outra máquina.</p>
+</section>
+
+<section id="mixer" aria-labelledby="mixer-title">
+<p class="eyebrow">07 · Equilibre seu projeto</p><h2 id="mixer-title">Fluxo de trabalho do mixer</h2>
+<p>O mixer controla as pistas de reprodução do projeto. Escolha os sons, equilibre nível e panorama e use mute ou solo para isolar um instrumento. Os controles das pistas de instrumento da DAW compartilham as configurações de áudio existentes do projeto, em vez de criar um segundo mixer independente.</p>
+<ol>
+<li>Reproduza um trecho representativo e ajuste os níveis dos instrumentos sem saturar a saída.</li>
+<li>Confira mute e solo antes de investigar uma fonte sonora silenciosa.</li>
+<li>Adicione efeitos compatíveis ou ajuste envios onde esses controles estiverem disponíveis. A compatibilidade de efeitos depende do mecanismo de reprodução e do plug-in instalados.</li>
+<li>Salve e reabra uma cópia do projeto depois de mudanças importantes de som ou efeito.</li>
+</ol>
+<p>Curvas genéricas de CC7/CC10 alteram o volume/panorama do instrumento receptor da SoundFont durante a reprodução principal; elas permanecem separadas dos controles de nível/panorama do mixer. As faixas numeradas mantêm valores MIDI brutos de 7 bits. Faixas de CC de profundidade de efeito não automatizam os envios do mixer. Pistas de áudio expõem seus próprios estados de mute e nível; não presuma que todos os recursos do mixer de pistas da partitura estão disponíveis em pistas de áudio importado.</p>
+<p>Os fluxos completos de automação <span lang="en">Read</span>, <span lang="en">Touch</span>, <span lang="en">Latch</span> e <span lang="en">Write</span> ainda estão incompletos. A presença de um controle na tela não comprova gravação completa de automação nem comportamento idêntico em todos os mecanismos sonoros.</p>
+</section>
+
+<section id="media" aria-labelledby="media-title">
+<p class="eyebrow">08 · Trabalhe com áudio externo</p><h2 id="media-title">Importação de áudio e gravação</h2>
+<h3>Importar WAV, MP3 ou FLAC</h3>
+<ol>
+<li>Guarde o áudio de origem em uma pasta estável que você manterá junto com o projeto.</li>
+<li>Na visualização DAW, escolha <strong lang="en">Audio track</strong>, posicione o cursor de reprodução e use o botão de importação da pista. Um clique duplo na faixa de áudio também abre a importação.</li>
+<li>Escolha um arquivo compatível. O clipe é colocado no tick musical escolhido; arraste-o para mudar sua posição inicial.</li>
+<li>Reproduza o trecho com a partitura e salve o projeto nativo.</li>
+</ol>
+<p>Os arquivos são decodificados na memória e referenciados por seus caminhos no sistema de arquivos; não são incorporados nem copiados para o arquivo da partitura. O início dos clipes segue a linha do tempo do andamento, enquanto a gravação de origem mantém sua duração fixa. Não há promessa de ajuste automático ao andamento nem de alongamento do tempo (time stretching).</p>
+<p>Arquivos longos podem usar muita memória. A renderização atual do mecanismo de pistas de áudio é limitada aos primeiros 30 minutos da linha do tempo renderizada de uma pista; o material após esse limite pode não tocar. Divida ou encurte o material e ouça o arranjo inteiro.</p>
+<div class="note warning"><p><strong>Antes de mover ou compartilhar um projeto:</strong> copie os arquivos de áudio além da partitura. As referências existentes dos clipes podem continuar apontando para os locais originais. Esta versão não tem um fluxo completo de coleta de mídia portátil nem de reassociação. Restaure o local original ou reimporte a mídia no tick correto.</p></div>
+<h3>Gravar uma entrada ASIO</h3>
+<ol>
+<li>Selecione um driver ASIO e uma interface com canais de entrada em <strong lang="en">Preferences &gt; Audio &amp; MIDI</strong>.</li>
+<li>Adicione uma pista de áudio e use seu botão <strong>R</strong> para armá-la. Apenas uma pista de áudio pode ficar armada por vez.</li>
+<li>Posicione o cursor de reprodução no início desejado. Escolha <strong lang="en">Record</strong>; a partitura toca enquanto a entrada da interface é capturada.</li>
+<li>Escolha <strong lang="en">Stop</strong> para finalizar a tomada. Ouça o clipe antes de gravar outra tomada.</li>
+</ol>
+<p>A gravação captura atualmente até dois canais de entrada ASIO e grava WAV de ponto flutuante de 32 bits. Para uma partitura salva, as tomadas vão para uma pasta vizinha <code>&lt;score name&gt; Audio</code>, em que <code>&lt;score name&gt;</code> é o nome da partitura. Para uma partitura ainda não salva, vão para <code>Documents\MillerScore\Recordings</code>. Salvar a partitura depois não move esses arquivos automaticamente.</p>
+<p>A seleção de entrada, o monitoramento e a compensação de latência estão incompletos. Não conte com alinhamento de overdub preciso por amostra. Se uma tomada tiver falhas, tente um buffer ASIO maior e reduza a carga de processamento. A mensagem <span lang="en">“Nothing was recorded”</span> (Nada foi gravado) indica que você deve conferir as entradas da interface e se a reprodução realmente começou.</p>
+</section>
+
+<section id="save" aria-labelledby="save-title">
+<p class="eyebrow">09 · Preserve seu trabalho</p><h2 id="save-title">Salvar, fazer backups e recuperar</h2>
+<p>Use <strong lang="en">File &gt; Save</strong> para o projeto nativo da partitura e <strong lang="en">Save As</strong> para uma cópia de trabalho separada. Mantenha o projeto nativo junto com suas gravações externas e mídia importada. Uma exportação de áudio ou partitura impressa não é um backup completo do projeto editável.</p>
+<p>Configure <strong lang="en">Auto save</strong> em <strong lang="en">Preferences &gt; Save &amp; publish</strong>. O salvamento automático ajuda na recuperação; continue salvando normalmente. A opção de fazer backup antes de salvar mantém a versão anterior em disco na pasta oculta <code>.mscbackup</code> ao lado da partitura, com um nome como <code>.Example.mscz~</code>.</p>
+<h3>Após um encerramento inesperado</h3>
+<ol>
+<li>Preserve a partitura original, sua pasta de backup e a mídia externa antes de fazer outras alterações.</li>
+<li>Reinicie o MillerScore. Se uma solicitação de recuperação oferecer trabalho não salvo, confira a partitura recuperada e salve-a com um novo nome.</li>
+<li>Confira as notas, as edições de interpretação, as atribuições sonoras e as referências de áudio. Reproduza um trecho curto.</li>
+<li>Se a recuperação não estiver disponível, trabalhe com uma cópia da última partitura ou do último backup que você sabe que funcionava. Guarde o arquivo com falha para uma investigação privada de suporte, se necessário.</li>
+</ol>
+<div class="note warning"><p><strong>Aviso de mídia ausente:</strong> clipes indisponíveis são marcados como <strong lang="en">[Missing]</strong> e ficam silenciosos. Suas referências de arquivo e posições iniciais são mantidas. Restaure arquivos legíveis nos locais esperados e reabra a partitura. Preserve um backup do projeto e da mídia antes de movê-los ou substituí-los.</p></div>
+<p>Pastas sincronizadas na nuvem podem acrescentar bloqueios, arquivos somente on-line ou gravações atrasadas. Garanta que o projeto e sua mídia estejam disponíveis localmente. Um backup separado e com versões protege contra sobrescrita acidental e erros de sincronização; o salvamento automático não substitui esse backup.</p>
+</section>
+
+<section id="troubleshooting" aria-labelledby="troubleshooting-title">
+<p class="eyebrow">10 · Investigue uma mudança por vez</p><h2 id="troubleshooting-title">Solução de problemas</h2>
+<details><summary>O MillerScore não inicia ou fecha imediatamente</summary>
+<p>Confirme que o ZIP inteiro foi extraído e inicie pela pasta extraída. Mantenha DLLs, QML, sons e outros recursos distribuídos junto com o executável. Tente uma cópia extraída recentemente em uma nova pasta local com permissão de gravação e teste sem abrir sua partitura anterior.</p>
+<p>Se uma nova cópia também falhar, registre a versão do aplicativo, a versão do Windows e os passos exatos. Guarde os logs mais recentes do aplicativo e do inicializador. Confira o Visualizador de Eventos do Windows em <strong lang="en">Windows Logs &gt; Application</strong> (Logs do Windows &gt; Aplicativo) para identificar o aplicativo/módulo com falha. Preserve as preferências antes de investigar configurações corrompidas; evite apagar sua única cópia de um projeto ou de mídia.</p>
+</details>
+<details><summary>A janela fica vazia, cortada ou com falhas gráficas</summary>
+<p>Tente um tamanho de janela normal e uma escala padrão de exibição do Windows e reinicie. Confira se há um driver gráfico atualizado do fabricante do dispositivo. Anote se o problema afeta a partitura, a DAW ou ambos e anexe uma captura de tela com dados privados ocultados. Uma solução específica de exibição precisa ser confirmada no seu dispositivo.</p>
+</details>
+<details><summary>A reprodução fica silenciosa ou tem estalos</summary>
+<p>Confira a saída e o volume do Windows, o dispositivo de áudio escolhido, mute/solo e a atribuição sonora do instrumento. Tente uma partitura simples com uma SoundFont para isolar problemas de plug-in ou biblioteca opcional. Para estalos, tente um buffer de áudio maior e menos instrumentos/efeitos que exijam muito processamento.</p>
+<p>Se uma interface foi desconectada, reconecte-a e selecione novamente o dispositivo ou escolha outra saída disponível. Para um instrumento SoundFont, confira também se a automação genérica CC7/CC11 tem valores zero que podem atenuá-lo ou silenciá-lo. A automação de CC não fornece uma biblioteca sonora ausente nem corrige um dispositivo de áudio indisponível.</p>
+</details>
+<details><summary>Um VST3 está ausente, falha na busca ou causa um encerramento</summary>
+<p>Confirme que é um VST3 Windows de 64 bits, que seu conteúdo e sua ativação estão instalados e que sua pasta está incluída nos caminhos de busca de VST3. Faça uma nova busca após a instalação. Preserve o log da busca e teste a atribuição de uma SoundFont em uma cópia do projeto.</p>
+<p>Se o problema começou após adicionar um plug-in, isole-o usando o procedimento normal de reparo/desinstalação do fabricante. Registre seu nome e sua versão em particular. Não envie binários licenciados, arquivos de ativação ou conteúdo de amostras a uma issue.</p>
+</details>
+<details><summary>Muse Sounds não aparece ou um som está indisponível</summary>
+<p>O componente é opcional e instalado separadamente. Confirme que a instalação do fornecedor terminou e que um runtime MuseSampler compatível e a biblioteca sonora estão presentes. Reinicie o MillerScore e atualize a lista de sons. Escolha uma SoundFont ou VST3 instalado quando precisar continuar.</p>
+<p>Uma atribuição ausente pode ser mantida no projeto. Use uma cópia separada ao substituir um som e ouça a substituição. Não trate uma biblioteca opcional ausente como falha de instalação do aplicativo.</p>
+</details>
+<details><summary>Um clipe de áudio está ausente ou uma gravação ficou vazia</summary>
+<p>Restaure a mídia importada em seu caminho original ou reimporte-a no tick inicial original. Preserve o projeto original antes de salvar após um aviso de mídia ausente. Para gravar, confirme que uma pista de áudio está armada, que o dispositivo ASIO expõe entradas e que a reprodução começa.</p>
+<p>As gravações são arquivos WAV separados. Confira a pasta Audio ao lado da partitura ou a pasta Recordings de projetos ainda não salvos. Não há garantia de recuperação de uma tomada com falha ou interrompida.</p>
+</details>
+<details><summary>A verificação de atualização falha ou o aplicativo itch não abre</summary>
+<p>Confira sua conexão, as regras de proxy/firewall e se o GitHub está acessível. Metadados de versão ausentes, HTTP 404, limites de requisições ou respostas malformadas podem impedir a verificação. Esse resultado não determina se você tem a versão mais recente da loja.</p>
+<p>Abra diretamente sua biblioteca itch ou a página oficial de downloads do MillerScore. Entre com a conta que tem acesso. Uma versão do GitHub que contém apenas código-fonte não inclui um instalador Windows. Se não houver um aplicativo registrado para abrir links itch, use o download pelo navegador; não digite credenciais do itch no MillerScore.</p>
+</details>
+<details><summary>Uma curva de controlador é salva, mas não muda o som</summary>
+<p>Confira se é uma faixa genérica numerada de CC ou um controle dedicado de canal/nota. A automação genérica de CC exige uma atribuição confirmada de MS Basic/SoundFont e a reprodução principal da partitura; a pré-escuta de notas não a aplica. SoundFonts podem ignorar controladores, principalmente números indefinidos ou pares LSB. Muse Sounds, VST3 e saída MIDI externa não recebem faixas genéricas. Controladores protegidos de banco, estado de notas, entrada de dados, RPN/NRPN e modo do canal nunca são enviados. Consulte a <a href="#controllers">seção de suporte a controladores</a> antes de mudar sua fonte sonora.</p>
+</details>
+<p>Relate um problema reproduzível no <a href="https://github.com/dulcedelechedev/millerscore/issues">rastreador de issues do MillerScore</a>. Inclua a versão do aplicativo, passos concisos, comportamento esperado e observado, mecanismo de reprodução sonora e linhas relevantes dos logs com dados privados ocultados. Use uma partitura pequena que você tenha permissão para compartilhar.</p>
+</section>
+
+<section id="privacy" aria-labelledby="privacy-title">
+<p class="eyebrow">11 · Preserve a privacidade dos relatos</p><h2 id="privacy-title">Logs, relatórios de falha e privacidade</h2>
+<p>Para o perfil padrão da versão Windows de lançamento, a raiz de dados do aplicativo normalmente é <code>%LOCALAPPDATA%\MillerScore\MillerScore</code>. Abra esse local no Explorador de Arquivos. Versões de desenvolvimento podem usar um perfil separado <code>MillerScoreDevelopment</code>; configurações portáteis podem usar outra raiz.</p>
+<ul>
+<li><strong>Logs do aplicativo:</strong> a pasta <code>logs</code>, com arquivos de log do MillerScore que incluem data e hora. Logs antigos correspondentes são removidos periodicamente.</li>
+<li><strong>Logs de busca de plug-ins:</strong> <code>logs\audiopluginregistration_YYMMDD.log</code>, quando o registro de plug-ins foi executado.</li>
+<li><strong>Banco de dados/dumps do Crashpad:</strong> <code>logs\dumps</code>, quando a versão empacotada inclui e inicia o tratamento de falhas. Uma falha pode não produzir um dump.</li>
+<li><strong>Antes de o aplicativo iniciar:</strong> o inicializador pode mostrar uma caixa de erro do Windows em vez de criar um log do aplicativo. Registre o número do erro e oculte caminhos pessoais antes de compartilhar uma captura de tela.</li>
+</ul>
+<p>O envio de relatórios de falha fica desativado por padrão, e esta versão não tem um servidor de envio de falhas configurado. Logs podem incluir nomes de partituras, caminhos de mídia e plug-ins, detalhes dos dispositivos e nomes de pastas do usuário. Dumps de falha podem conter memória do processo e conteúdo privado. Revise e oculte dados privados dos arquivos de diagnóstico antes de compartilhar; não publique um arquivo compactado de diagnóstico ou dump sem revisão em uma issue pública.</p>
+<p>As verificações de atualização contatam a API pública de Releases do GitHub. O GitHub recebe informações comuns de requisição, incluindo endereço de rede e cabeçalhos. Desative as verificações automáticas em <strong lang="en">Preferences &gt; General &gt; Updates</strong> se não quiser requisições automáticas.</p>
+<p>Partituras, referências de áudio, gravações e preferências são arquivos locais. Pastas na nuvem, ações de publicação/compartilhamento, links do navegador, itch.io, plug-ins de terceiros e serviços opcionais Muse Sounds têm seus próprios comportamentos e termos de privacidade. Leia o <a href="https://github.com/dulcedelechedev/millerscore/blob/main/PRIVACY.md">aviso de privacidade do MillerScore</a> antes de usar recursos on-line ou enviar relatos.</p>
+</section>
+
+<section id="license" aria-labelledby="license-title">
+<p class="eyebrow">12 · Software livre, projeto independente</p><h2 id="license-title">Licença, código-fonte e atribuição</h2>
+<p>O MillerScore é software livre sob a GNU General Public License versão 3. A licença permite executar, estudar, modificar e redistribuir o software coberto conforme seus termos, incluindo os requisitos aplicáveis de código-fonte e avisos ao distribuí-lo. O aplicativo é fornecido sem garantia, conforme descrito na licença.</p>
+<p>Leia a <a href="https://github.com/dulcedelechedev/millerscore/blob/main/LICENSE.txt">licença completa e a exceção para fontes</a> do projeto e o <a href="https://www.gnu.org/licenses/gpl-3.0.html">texto da GPLv3</a>. O código-fonte e as instruções de compilação estão disponíveis no <a href="https://github.com/dulcedelechedev/millerscore">repositório público do MillerScore</a>. Quando disponível, use a tag ou o commit do código-fonte correspondente à versão instalada.</p>
+<p>O MillerScore é um fork comunitário independente baseado no MuseScore Studio, publicado por DulceDeLecheDEV. Não é afiliado nem endossado pelo Muse Group ou pelo projeto MuseScore. Os avisos originais de direitos autorais, atribuição e licenças de terceiros são preservados. MuseScore e marcas relacionadas pertencem a seus respectivos proprietários.</p>
+<p>SoundFonts, plug-ins VST3, MuseSampler, Muse Sounds e bibliotecas de amostras instalados separadamente mantêm suas próprias licenças. Um download do MillerScore não concede direitos adicionais sobre esse conteúdo.</p>
+</section>
+
+<section id="early-access" aria-labelledby="early-title">
+<p class="eyebrow">13 · Conheça os limites atuais</p><h2 id="early-title">Limitações e mudanças do acesso antecipado</h2>
+<ul>
+<li>A automação genérica de CC é enviada somente ao MS Basic/SoundFont durante a reprodução principal, com resposta dependente do instrumento. Os 20 controladores protegidos de seleção de banco, estado de parâmetros, estado de notas e modo do canal não podem ser editados e nunca são enviados. Muse Sounds, VST3, saída MIDI externa e exportação SMF não têm suporte a essas faixas genéricas da DAW.</li>
+<li>Panorama, intensidade de soltura e controles de filtro por nota estão indisponíveis. Muse Sounds não tem controle independente de intensidade por nota.</li>
+<li>A seleção de entrada de gravação, o monitoramento e a compensação de latência estão incompletos; apenas uma pista de áudio fica armada por vez.</li>
+<li>Áudio importado e tomadas são referenciados externamente. Recuperação de mídia ausente, reassociação, coleta portátil e tratamento de pistas longas têm limitações.</li>
+<li>Os modos completos de gravação de automação estão incompletos. O intercâmbio MIDI/MusicXML não promete fidelidade completa do projeto DAW.</li>
+<li>A compatibilidade de hardware, gráficos, plug-ins e runtimes proprietários opcionais ainda precisa de validação mais ampla.</li>
+</ul>
+<h3>Recursos de referência da v0.1.0</h3>
+<p>A série em acesso antecipado apresenta visualizações conectadas de partitura e DAW, um piano roll projetado com substituições de interpretação, um catálogo completo de controladores numerados com restrições de proteção, atribuição de sons SoundFont/VST3, recursos opcionais Muse Sounds instalados separadamente, pistas WAV/MP3/FLAC, gravação ASIO, um mixer do projeto e verificações de versões pelo GitHub com encaminhamento ao itch.io.</p>
+<p>Este é um resumo dos recursos, não uma afirmação de que todos os fluxos de trabalho ou mecanismos de reprodução passaram pela validação de lançamento. Para mudanças vinculadas a uma versão publicada, leia suas <a href="https://github.com/dulcedelechedev/millerscore/releases">notas de versão</a> e os <a href="https://dulcedelechedev.itch.io/millerscore">downloads disponíveis na loja</a>.</p>
+<a class="anchor-top" href="#top">Voltar à visão geral do guia</a>
+</section>
+<footer>
+<p>MillerScore · DulceDeLecheDEV · Fork independente do MuseScore Studio</p>
+<p>Este guia funciona localmente, sem scripts, fontes remotas ou conexão de rede. Links externos abrem os serviços indicados quando você os escolhe.</p>
+</footer>
+</main>
+</div>
+</body>
+</html>
+

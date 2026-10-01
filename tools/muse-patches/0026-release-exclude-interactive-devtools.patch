@@ -1,0 +1,97 @@
+diff --git a/framework/interactive/CMakeLists.txt b/framework/interactive/CMakeLists.txt
+--- a/framework/interactive/CMakeLists.txt
++++ b/framework/interactive/CMakeLists.txt
+@@ -31,10 +31,6 @@
+     api/interactiveapi.cpp
+     api/interactiveapi.h
+ 
+-    dev/testdialog.cpp
+-    dev/testdialog.h
+-    dev/testdialog.ui
+-
+     internal/filedialogfilters.cpp
+     internal/filedialogfilters.h
+     internal/iinteractiveprovider.h
+@@ -47,6 +43,14 @@
+     internal/platforminteractive.cpp
+     internal/platforminteractive.h
+ )
++
++if (MUSE_APP_UNSTABLE)
++    target_sources(muse_interactive PRIVATE
++        dev/testdialog.cpp
++        dev/testdialog.h
++        dev/testdialog.ui
++    )
++endif()
+ 
+ if (OS_IS_WASM)
+     target_sources(muse_interactive PRIVATE
+diff --git a/framework/interactive/interactivemodule.cpp b/framework/interactive/interactivemodule.cpp
+--- a/framework/interactive/interactivemodule.cpp
++++ b/framework/interactive/interactivemodule.cpp
+@@ -37,7 +37,9 @@
+ 
+ #include "api/interactiveapi.h"
+ 
++#ifdef MUSE_APP_UNSTABLE
+ #include "dev/testdialog.h"
++#endif
+ 
+ using namespace muse::interactive;
+ using namespace muse::modularity;
+@@ -77,8 +79,10 @@
+         ir->registerQmlUri(Uri("muse://interactive/selectfile"), "Muse.Interactive", "FileDialog");
+         ir->registerQmlUri(Uri("muse://interactive/selectdir"), "Muse.Interactive", "FolderDialog");
+ 
++#ifdef MUSE_APP_UNSTABLE
+         ir->registerQmlUri(Uri("muse://devtools/interactive/sample"), "Muse.Interactive", "SampleDialog");
+         ir->registerWidgetUri<TestDialog>(Uri("muse://devtools/interactive/testdialog"));
++#endif
+     }
+ }
+ 
+diff --git a/framework/interactive/qml/Muse/Interactive/CMakeLists.txt b/framework/interactive/qml/Muse/Interactive/CMakeLists.txt
+--- a/framework/interactive/qml/Muse/Interactive/CMakeLists.txt
++++ b/framework/interactive/qml/Muse/Interactive/CMakeLists.txt
+@@ -20,12 +20,21 @@
+ 
+ muse_create_qml_module(muse_interactive_qml ALIAS muse::interactive_qml FOR muse_interactive)
+ 
++set(interactive_dev_sources)
++set(interactive_dev_qml)
++if (MUSE_APP_UNSTABLE)
++    list(APPEND interactive_dev_sources
++        dev/interactivetestsmodel.cpp
++        dev/interactivetestsmodel.h
++    )
++    list(APPEND interactive_dev_qml dev/SampleDialog.qml)
++endif()
++
+ qt_add_qml_module(muse_interactive_qml
+     URI Muse.Interactive
+     VERSION 1.0
+     SOURCES
+-        dev/interactivetestsmodel.cpp
+-        dev/interactivetestsmodel.h
++        ${interactive_dev_sources}
+         errordetailsmodel.cpp
+         errordetailsmodel.h
+         interactiveprovidermodel.cpp
+@@ -35,7 +44,7 @@
+         progressdialogmodel.cpp
+         progressdialogmodel.h
+     QML_FILES
+-        dev/SampleDialog.qml
++        ${interactive_dev_qml}
+         ErrorDetailsView.qml
+         FileDialog.qml
+         FolderDialog.qml
+@@ -52,4 +61,6 @@
+ fixup_qml_module_dependencies(muse_interactive_qml)
+ 
+ # Necessary for the auto-generated sources
+-target_include_directories(muse_interactive_qml PRIVATE dev)
++if (MUSE_APP_UNSTABLE)
++    target_include_directories(muse_interactive_qml PRIVATE dev)
++endif()

@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="MillerScore Early Access user guide: installation, notation and DAW editing, sound setup, controller limits, recording, recovery and privacy.">
+<meta name="color-scheme" content="dark light">
+<title>MillerScore · User Guide</title>
+<style>
+:root{color-scheme:dark;--bg:#111214;--panel:#1b1d21;--raised:#24272c;--text:#f2eee6;--muted:#c0bbb2;--gold:#efc66c;--line:#56524a;--warning:#f4d7a4}
+*{box-sizing:border-box}html{scroll-padding-top:2rem}body{margin:0;background:var(--bg);color:var(--text);font:1rem/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--gold);text-underline-offset:.2em;text-decoration-thickness:.08em;overflow-wrap:anywhere}a:hover{text-decoration-thickness:.16em}:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+h1,h2,h3{line-height:1.2;font-weight:650;letter-spacing:-.025em}h1{margin:.5rem 0 1.15rem;font-size:clamp(2.6rem,6vw,4.6rem)}h2{margin:0 0 1.4rem;font-size:clamp(1.65rem,3vw,2.2rem)}h3{margin:1.75rem 0 .75rem;font-size:1.25rem}
+p{margin:0 0 1rem}li{margin-bottom:.55rem}ul,ol{padding-left:1.4rem}strong{font-weight:650}code,kbd{font:.9em/1.5 ui-monospace,"Cascadia Code",Consolas,monospace;overflow-wrap:anywhere}code{padding:.12em .3em;background:var(--raised);border-radius:.2rem}kbd{padding:.1em .35em;border:1px solid var(--line);border-radius:.25rem}
+.skip{position:fixed;z-index:5;top:.5rem;left:.5rem;padding:.75rem 1rem;background:var(--gold);color:var(--bg);transform:translateY(-200%)}.skip:focus{transform:none}
+.layout{display:grid;grid-template-columns:16rem minmax(0,1fr);max-width:94rem;margin-inline:auto}.sidebar{align-self:start;position:sticky;top:0;max-height:100dvh;overflow-y:auto;padding:2.25rem 1.75rem;border-right:1px solid var(--line)}
+.brand{font-size:1.4rem;font-weight:650;letter-spacing:-.04em;text-decoration:none}.edition{display:block;color:var(--muted);font-size:.85rem;margin:.25rem 0 1.6rem}.sidebar h2{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}
+.sidebar ol{list-style:none;margin:0;padding:0}.sidebar li{margin:.05rem 0}.sidebar li a{display:block;color:var(--text);padding:.45rem .15rem;font-size:.94rem;text-decoration:none}.sidebar li a:hover{color:var(--gold);text-decoration:underline}
+main{min-width:0;padding:3.75rem clamp(1.25rem,4vw,5rem) 2rem}.hero{padding-bottom:2rem;max-width:56rem}.eyebrow{color:var(--gold);font-size:.82rem;letter-spacing:.13em;text-transform:uppercase;font-weight:650}.lead{color:var(--muted);font-size:1.2rem;max-width:40rem}
+.quick-links{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1.5rem}.quick-links a{display:inline-block;padding:.65rem 1rem;background:var(--raised);border:1px solid var(--line);border-radius:.3rem}
+section{border-top:1px solid var(--line);padding:2.8rem 0;max-width:62rem;scroll-margin-top:1.5rem}section>p,section>ul,section>ol{max-width:53rem}
+.note{margin:1.4rem 0;padding:1.1rem 1.25rem;border-left:3px solid var(--gold);background:var(--panel)}.note p:last-child{margin-bottom:0}.warning{border-left-color:var(--warning)}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1.4rem 0}.card{padding:1.2rem;background:var(--panel);border:1px solid var(--line);border-radius:.4rem}.card h3{margin-top:0}.card p:last-child{margin-bottom:0}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:.3rem;margin:1.4rem 0}table{border-collapse:collapse;width:100%;text-align:left;font-size:.94rem}caption{text-align:left;padding:1rem;background:var(--panel);color:var(--muted);font-weight:600}th,td{padding:.75rem .9rem;border-bottom:1px solid var(--line);vertical-align:top}thead th{background:var(--raised)}tbody th{font-weight:550}tr:last-child>*{border-bottom:0}.cc-table{min-width:40rem}.cc-table th:first-child{white-space:nowrap}
+details{margin:.8rem 0;padding:.2rem 1rem;border:1px solid var(--line);border-radius:.3rem;background:var(--panel)}summary{cursor:pointer;padding:.8rem 0;color:var(--gold);font-weight:600}details>:last-child{margin-bottom:1rem}.meta{font-size:.9rem;color:var(--muted)}.anchor-top{display:inline-block;margin-top:.7rem;font-size:.9rem}footer{border-top:1px solid var(--line);padding:2rem 0;color:var(--muted);font-size:.9rem}
+@media(max-width:58rem){.layout{display:block}.sidebar{position:static;max-height:none;padding:1.5rem;border-right:0;border-bottom:1px solid var(--line)}.sidebar ol{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.2rem .8rem}.edition{margin-bottom:1rem}main{padding-top:2.5rem}}
+@media(max-width:38rem){.sidebar ol{grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}th,td{padding:.6rem}section{padding-block:2rem}main{padding-inline:1.1rem}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important}}
+@media(forced-colors:active){.note,.card,details,.quick-links a{border:1px solid CanvasText}}
+@media print{:root{--bg:#fff;--panel:#fff;--raised:#eee;--text:#111;--muted:#333;--gold:#614100;--line:#999;--warning:#614100;color-scheme:light}.layout{display:block}.sidebar,.skip,.anchor-top,.quick-links{display:none}main{padding:0}section{padding:1.5rem 0}.table-wrap{overflow:visible}.cc-table{min-width:0}h2,h3,summary{break-after:avoid}tr,.card,.note{break-inside:avoid}}
+.language-links{display:flex;flex-wrap:wrap;gap:.4rem .8rem;margin:0 0 1.6rem;font-size:.85rem}.language-links [aria-current="page"]{color:var(--muted)}
+/* cc-visuals:start */
+.cc-visuals{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:1rem;margin:1.5rem 0}
+.cc-visuals figure{margin:0;padding:.9rem;background:var(--panel);border:1px solid var(--line);border-radius:.4rem;min-width:0}
+.cc-visuals h4{margin:0 0 1rem;font-size:1.05rem;line-height:1.4;color:var(--gold)}
+.cc-visuals svg{display:block;width:100%;max-width:20rem;height:auto;margin:0 auto}
+.cc-visuals figcaption{margin:1rem 0 0;font-size:.94rem;line-height:1.6;color:var(--muted)}
+@media(forced-colors:active){.cc-visuals figure{border-color:CanvasText}.cc-visuals svg{forced-color-adjust:none}.cc-visuals figcaption{color:CanvasText}}
+@media print{.cc-visuals{grid-template-columns:repeat(3,minmax(0,1fr))}.cc-visuals figure{break-inside:avoid}.cc-visuals svg{background:#1b1d21;print-color-adjust:exact}}
+/* cc-visuals:end */
+</style>
+<link rel="alternate" hreflang="pt-BR" href="pt-BR/index.html">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the user guide</a>
+<div class="layout">
+<aside class="sidebar">
+<a class="brand" href="#top">MillerScore</a>
+<span class="edition">User guide · v0.1.x Early Access</span>
+<nav class="language-links" aria-label="Guide language"><span aria-current="page">English</span><a href="pt-BR/index.html" lang="pt-BR" hreflang="pt-BR">Português (Brasil)</a></nav>
+<nav aria-labelledby="contents-title">
+<h2 id="contents-title">In this guide</h2>
+<ol>
+<li><a href="#install">Install &amp; update</a></li>
+<li><a href="#audio">First launch &amp; audio</a></li>
+<li><a href="#linked-project">Score &amp; DAW</a></li>
+<li><a href="#piano-roll">Piano roll</a></li>
+<li><a href="#controllers">MIDI controllers</a></li>
+<li><a href="#sounds">Sound sources</a></li>
+<li><a href="#mixer">Mixer</a></li>
+<li><a href="#media">Audio &amp; recording</a></li>
+<li><a href="#save">Save &amp; recover</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#privacy">Logs &amp; privacy</a></li>
+<li><a href="#license">License &amp; source</a></li>
+<li><a href="#early-access">Early Access &amp; changes</a></li>
+</ol>
+</nav>
+</aside>
+<main id="main" tabindex="-1">
+<header class="hero" id="top">
+<p class="eyebrow">Notation. Performance. One project.</p>
+<h1>MillerScore<br>User Guide</h1>
+<p class="lead">MuseScore, but with a built-in DAW. Write the music in a score, shape its performance in the piano roll, and choose your sounds in one connected workspace.</p>
+<p>This guide covers the Windows v0.1.x Early Access series. Features and compatibility are still developing. Keep backups and read the playback and external-media limits before starting important work.</p>
+<div class="quick-links" aria-label="Quick links"><a href="#install">Get started</a><a href="#controllers">Controller support</a><a href="#troubleshooting">Solve a problem</a></div>
+</header>
+
+<section id="install" aria-labelledby="install-title">
+<p class="eyebrow">01 · Get started</p><h2 id="install-title">Install &amp; update</h2>
+<p>Use the Windows 64-bit build from the <a href="https://dulcedelechedev.itch.io/millerscore">official MillerScore itch.io page</a>. Source archives on GitHub are for building the application; they are not a ready-to-run Windows installation.</p>
+<h3>Install with the itch app</h3>
+<ol>
+<li>Install the <a href="https://itch.io/app">itch app</a> from itch.io.</li>
+<li>Sign in to the itch.io account that has access to MillerScore. If a download is tied to a purchase or download key, use the account associated with that access.</li>
+<li>Open MillerScore in the itch app, choose <strong>Install</strong>, and select its Windows build and installation folder.</li>
+<li>Launch MillerScore from the installed entry. Store your projects and audio outside the application installation folder.</li>
+</ol>
+<p>The itch app manages its own authentication and checks for updates to its installed downloads. A browser ZIP download is a separate installation. See itch.io's <a href="https://itch.io/docs/itch/using/downloading.html">download guide</a> and <a href="https://itch.io/docs/itch/integrating/updates.html">update guide</a>.</p>
+<h3>Install a ZIP manually</h3>
+<ol>
+<li>Download the Windows ZIP from your itch.io download page.</li>
+<li>In File Explorer, use <strong>Extract All</strong> to unpack the entire archive into a new folder.</li>
+<li>Open the extracted folder and run <code>MillerScore.exe</code>. Keep the accompanying application folders and DLLs together. Do not launch an executable from inside the ZIP.</li>
+<li>Create or open a small score, save it, reopen it, and check audio before using your main projects.</li>
+</ol>
+<p>To update a manual install, close MillerScore, back up your projects and media, then extract the newer ZIP into a different folder. Launch the new copy and check a project copy before retiring the previous installation.</p>
+<h3>What the in-app update check does</h3>
+<p><strong>Help &gt; Check for update</strong> reads release information from the public GitHub Releases service. It does not sign in to itch.io or grant access to paid downloads. For releases delivered through itch.io, accepting the update opens the itch app's installation flow. If the itch link cannot open, the checker tries the official MillerScore itch.io page in your browser.</p>
+<p>You still need the correct itch.io account and an available compatible download. A GitHub release announcement alone does not prove that an itch package has been uploaded. If an update cannot be fetched, open your itch library or download page directly.</p>
+<p>Automatic checks can be turned off in <strong>Preferences &gt; General &gt; Updates</strong>. Background package downloads are off by default; the itch app has its own update settings.</p>
+</section>
+
+<section id="audio" aria-labelledby="audio-title">
+<p class="eyebrow">02 · Hear your score</p><h2 id="audio-title">First launch &amp; audio</h2>
+<ol>
+<li>Create a short score with one instrument, or open a copy of an existing score.</li>
+<li>Open <strong>Edit &gt; Preferences &gt; Audio &amp; MIDI</strong>.</li>
+<li>Choose an available <strong>Audio driver</strong> and <strong>Audio device</strong>. For recording, choose an ASIO driver with input channels.</li>
+<li>Choose a buffer size your device can sustain. If you hear crackles or dropouts, try a larger buffer; smaller buffers can reduce delay but require more reliable processing.</li>
+<li>Confirm a sound is assigned to the instrument, then press Play in the application's playback toolbar. Check the system output volume and your speakers or headphones.</li>
+</ol>
+<p>Device and driver availability depends on Windows and your interface. A MIDI input or output selection is separate from the audio output. Connecting a MIDI keyboard does not itself install a sound library.</p>
+<div class="note"><p><strong>Start with a SoundFont.</strong> A working SoundFont assignment is a useful baseline when isolating a device, VST3, or optional Muse Sounds problem.</p></div>
+</section>
+
+<section id="linked-project" aria-labelledby="linked-title">
+<p class="eyebrow">03 · One musical source</p><h2 id="linked-title">Score &amp; DAW stay connected</h2>
+<p>Use the <strong>Score / DAW</strong> view switch above the document to change workspaces. The score supplies the notes, rhythm, parts, voices, ties, and written articulations. DAW tracks represent those score instruments. The piano roll shows the same score notes, with optional playback changes layered on top.</p>
+<div class="cards">
+<div class="card"><h3>Notes mode</h3><p>Edit the music itself: pitch, score position, written duration, and note creation or deletion. The notation changes with the edit.</p></div>
+<div class="card"><h3>Performance mode</h3><p>Adjust how existing notes play: supported velocity, timing offsets, and sounding duration. The written score stays in place.</p></div>
+</div>
+<p>Choose the mode before dragging. A playback timing offset does not move the written note to a new beat. A sounding-duration override does not rewrite its notated duration.</p>
+<p>Both views use the application's playback transport. Track and note selection connect the DAW to the score, and supported score and performance edits participate in project undo/redo. Save the native project to keep its performance data.</p>
+<div class="note"><p><strong>Keep the native project.</strong> Exported MIDI, MusicXML, PDFs, and audio serve different purposes. Do not assume they preserve every DAW override, controller curve, sound assignment, effect, or external clip reference.</p></div>
+</section>
+
+<section id="piano-roll" aria-labelledby="piano-title">
+<p class="eyebrow">04 · Shape the performance</p><h2 id="piano-title">Piano-roll editing</h2>
+<ol>
+<li>Open DAW view and select a score instrument track. Its projected score notes appear in the piano roll.</li>
+<li>Choose <strong>Notes</strong> or <strong>Performance</strong> mode. Use the grid and <strong>Snap</strong> control for placement.</li>
+<li>Click a note to select it. <kbd>Ctrl</kbd> + click adds or removes a note; <kbd>Shift</kbd> + click selects a range in time. Select multiple tracks to see their notes together.</li>
+<li>In Notes mode, use the draw tool to create notes in the primary selected track. Drag to edit pitch or position, and resize to change written duration when the score permits the edit.</li>
+<li>In Performance mode, drag or resize existing notes to change playback timing or sounding duration. Use the control lane for a supported note property.</li>
+<li>Audition the change, use Undo if needed, then save and reopen a project copy to confirm the result.</li>
+</ol>
+<p>The control selector includes dedicated note velocity, note fine pitch, channel pan, channel volume, and channel pitch lanes. Unavailable controls explain their limits in the selector. Note pan, release velocity, and per-note filter cutoff and resonance are currently unavailable.</p>
+<p>Independent note velocity is available for SoundFont and compatible VST3 playback. It is disabled for Muse Sounds because its current playback interface does not expose independent velocity for simultaneous notes.</p>
+<p>Complex notation still follows score-editing rules. Ties, grace notes, tuplets, and generated ornament playback need particular care; the piano roll is not a separate unlimited MIDI arrangement.</p>
+</section>
+
+<section id="controllers" aria-labelledby="controllers-title">
+<p class="eyebrow">05 · Read the support labels</p><h2 id="controllers-title">MIDI controllers: CC0 through CC127</h2>
+<p>The controller selector catalogs all 128 MIDI Control Change numbers with separate, stable lane identities. A controller value is a 7-bit integer from <strong>0 to 127</strong>. Safe lanes can hold project automation points; protected stateful or channel-mode lanes are available for inspection but block edits.</p>
+<div class="note warning"><p><strong>Generic CC automation is sent only to MS Basic/SoundFont.</strong> The 108 editable numbered lanes send raw 7-bit values from 0 to 127 during main score playback. Use CC7 for volume, CC10 for pan, CC11 for expression, and CC64 for sustain; the audible response depends on the SoundFont instrument. Some controllers, including undefined numbers and LSB partners, may be ignored. Application WAV-export checks verify CC7, CC10, CC11, and CC64. The 20 protected lanes are never sent. Muse Sounds, VST3, and external MIDI output do not receive these generic lanes.</p>
+<p>A CC11 lane replaces notation expression messages, and CC64/CC66 lanes replace notation sustain/sostenuto messages, on the corresponding channels while the lane is present. Note previews do not apply generic CC automation; use main playback to hear it. The dedicated <strong>Channel volume</strong>, <strong>Channel panning</strong>, and <strong>Channel pitch</strong> controls keep their separate playback paths.</p></div>
+<p>Viewing a lane does not send its MIDI command. CC curves are scoped to the selected instrument track. Select the controller by its number as well as its name, edit its points, and use Undo/Redo for supported curve changes. Opening another lane must not be used as a reset or panic command.</p>
+<h3 id="cc-drawing-title">Draw CC automation</h3>
+<ol>
+<li>Open <strong>DAW</strong> and <strong>Piano Roll</strong>, select an instrument track, then choose a controller under <strong>Control</strong>, such as <strong>Common CC → CC7 — Channel Volume</strong>.</li>
+<li>Click the <strong>Pencil</strong> button beside Control. Click or drag in the lane below the notes to draw stepped points.</li>
+<li>Hold <kbd>Alt</kbd> while dragging to draw a continuous curve. Alt-drag also temporarily draws a curve with Pencil off.</li>
+<li>Release the mouse to apply the whole stroke. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it in one step; <kbd>Esc</kbd> cancels an unfinished stroke.</li>
+</ol>
+<p>The stroke replaces existing points only inside its drawn time range. Points outside that range are retained. The timeline grid also applies to drawing; turn <strong>Snap</strong> off for finer freehand detail. Turn Pencil off to select and move points. Double-click empty space to add a point, or select a point and press <kbd>Delete</kbd> to remove it. Switching tracks or controllers cancels an unfinished stroke.</p>
+<p>This gesture follows Logic Pro's documented Pencil behavior with the Option-for-curved setting, using Alt on Windows. See <a href="https://support.apple.com/guide/logicpro/add-automation-points-lgcpb1a3327b/mac">Apple's automation drawing guide</a>. Bending an existing segment with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+drag is a separate gesture.</p>
+<!-- cc-visuals:start -->
+<h3 id="cc-visuals-title">Understand a CC lane</h3>
+<p>Three diagrams to read a lane, follow its curve, and distinguish common controllers.</p>
+<div class="cc-visuals" aria-labelledby="cc-visuals-title">
+<figure>
+<h4>1 · Choose a sound source</h4>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img" aria-labelledby="cc-visual-path-en-title" aria-describedby="cc-visual-path-en-desc" focusable="false" lang="en">
+<title id="cc-visual-path-en-title">The MS Basic controller path</title>
+<desc id="cc-visual-path-en-desc">108 editable controller numbers can be sent to MS Basic. The SoundFont instrument determines their effect. 20 protected controllers are never sent. Muse Sounds, VST3 and external MIDI do not support these generic lanes.</desc>
+<rect width="320" height="460" rx="8" fill="#1b1d21"/><g font-family="system-ui, -apple-system, Segoe UI, sans-serif"><rect x="10" y="10" width="300" height="54" rx="10" fill="#1b1d21" stroke="#efc66c" stroke-width="1.5"/><text x="160" y="44" font-size="20" fill="#efc66c" font-weight="650" text-anchor="middle">108 editable CC lanes</text><line x1="160" y1="72" x2="160" y2="96" stroke="#efc66c" stroke-width="3"/><path d="M154 90 L160 97 L166 90" fill="none" stroke="#efc66c" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="108" width="300" height="62" rx="10" fill="#1b1d21" stroke="#efc66c" stroke-width="1.5"/><text x="160" y="136" font-size="23" fill="#f2eee6" font-weight="650" text-anchor="middle">MS Basic</text><text x="160" y="160" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">SoundFont playback</text><line x1="160" y1="180" x2="160" y2="204" stroke="#efc66c" stroke-width="3"/><path d="M154 198 L160 205 L166 198" fill="none" stroke="#efc66c" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="218" width="300" height="54" rx="10" fill="#1b1d21" stroke="#efc66c" stroke-width="1.5"/><text x="160" y="252" font-size="20" fill="#f2eee6" font-weight="650" text-anchor="middle">Selected instrument</text><text x="160" y="300" font-size="18" fill="#c0bbb2" font-weight="400" text-anchor="middle">Its response depends</text><text x="160" y="324" font-size="18" fill="#c0bbb2" font-weight="400" text-anchor="middle">on the chosen sound.</text><rect x="10" y="344" width="300" height="56" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5" stroke-dasharray="5 4"/><text x="160" y="368" font-size="18" fill="#f2eee6" font-weight="600" text-anchor="middle">20 protected controllers</text><text x="160" y="390" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">Never sent</text><text x="160" y="425" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="middle">Other sources: no generic CC path</text><text x="160" y="446" font-size="14" fill="#c0bbb2" font-weight="400" text-anchor="middle">Muse Sounds · VST3 · External MIDI</text></g>
+</svg>
+<figcaption>For MS Basic, 108 editable CC numbers have a playback path. An instrument may ignore controls it does not implement. The 20 protected numbers are never sent.</figcaption>
+</figure>
+<figure>
+<h4>2 · Shape a control over time</h4>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img" aria-labelledby="cc-visual-curve-en-title" aria-describedby="cc-visual-curve-en-desc" focusable="false" lang="en">
+<title id="cc-visual-curve-en-title">Example controller curve over time</title>
+<desc id="cc-visual-curve-en-desc">A CC7 example has four points with values 100, 40, 70 and 110. Time runs left to right and the control changes between the points. These are illustrative values, not a screenshot or measured audio.</desc>
+<rect width="320" height="460" rx="8" fill="#1b1d21"/><g font-family="system-ui, -apple-system, Segoe UI, sans-serif"><text x="160" y="30" font-size="22" fill="#efc66c" font-weight="650" text-anchor="middle">Example: CC7</text><text x="15" y="64" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="start">Value</text><line x1="49" y1="92" x2="306" y2="92" stroke="#56524a" stroke-width="1" stroke-dasharray="3 5"/><text x="38" y="97" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">127</text><line x1="49" y1="206" x2="306" y2="206" stroke="#56524a" stroke-width="1" stroke-dasharray="3 5"/><text x="38" y="211" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">64</text><line x1="49" y1="322" x2="306" y2="322" stroke="#56524a" stroke-width="1" stroke-dasharray="3 5"/><text x="38" y="327" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">0</text><line x1="49" y1="80" x2="49" y2="322" stroke="#c0bbb2" stroke-width="1.5"/><line x1="49" y1="322" x2="306" y2="322" stroke="#c0bbb2" stroke-width="1.5"/><path d="M62 142 L140 250 L218 196 L296 124" fill="none" stroke="#efc66c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="62" cy="142" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="62" y="128" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">100</text><circle cx="140" cy="250" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="140" y="236" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">40</text><circle cx="218" cy="196" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="218" y="182" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">70</text><circle cx="296" cy="124" r="6" fill="#111214" stroke="#efc66c" stroke-width="3"/><text x="296" y="110" font-size="16" fill="#f2eee6" font-weight="650" text-anchor="middle">110</text><text x="49" y="348" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="start">Earlier</text><text x="306" y="348" font-size="15" fill="#c0bbb2" font-weight="400" text-anchor="end">Later</text><text x="178" y="347" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">Time →</text><text x="160" y="386" font-size="18" fill="#f2eee6" font-weight="400" text-anchor="middle">Each point sets a value</text><text x="160" y="410" font-size="18" fill="#f2eee6" font-weight="400" text-anchor="middle">for this controller.</text><text x="160" y="430" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">As playback advances,</text><text x="160" y="454" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="middle">the value follows the curve.</text></g>
+</svg>
+<figcaption>Each point belongs to one numbered controller on one instrument track. Changing this curve changes the control over time; it does not move the notes.</figcaption>
+</figure>
+<figure>
+<h4>3 · Start with four controls</h4>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 460" width="320" height="460" role="img" aria-labelledby="cc-visual-controls-en-title" aria-describedby="cc-visual-controls-en-desc" focusable="false" lang="en">
+<title id="cc-visual-controls-en-title">Volume, expression, pan and sustain</title>
+<desc id="cc-visual-controls-en-desc">CC7 changes instrument volume. CC11 shapes expression within a phrase. CC10 places sound left or right. CC64 is sustain: values 0 through 63 mean off, 64 through 127 mean on. Instrument support varies.</desc>
+<rect width="320" height="460" rx="8" fill="#1b1d21"/><g font-family="system-ui, -apple-system, Segoe UI, sans-serif"><rect x="10" y="8" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="35" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC7</text><text x="85" y="35" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Volume</text><text x="25" y="60" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Overall instrument level</text><line x1="28" y1="86" x2="291" y2="86" stroke="#56524a" stroke-width="7"/><line x1="28" y1="86" x2="203" y2="86" stroke="#efc66c" stroke-width="7"/><circle cx="203" cy="86" r="7" fill="#f2eee6"/><rect x="10" y="122" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="149" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC11</text><text x="85" y="149" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Expression</text><text x="25" y="174" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Shape a phrase’s level</text><line x1="28" y1="200" x2="291" y2="200" stroke="#56524a" stroke-width="7"/><line x1="28" y1="200" x2="155" y2="200" stroke="#efc66c" stroke-width="7"/><circle cx="155" cy="200" r="7" fill="#f2eee6"/><rect x="10" y="236" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="263" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC10</text><text x="85" y="263" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Pan</text><text x="25" y="288" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Place sound left or right</text><text x="26" y="320" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">L</text><text x="292" y="320" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="end">R</text><line x1="53" y1="314" x2="267" y2="314" stroke="#56524a" stroke-width="5"/><line x1="160" y1="305" x2="160" y2="323" stroke="#c0bbb2" stroke-width="1"/><circle cx="120" cy="314" r="7" fill="#efc66c"/><rect x="10" y="350" width="300" height="104" rx="10" fill="#1b1d21" stroke="#56524a" stroke-width="1.5"/><text x="25" y="377" font-size="18" fill="#efc66c" font-weight="650" text-anchor="start">CC64</text><text x="85" y="377" font-size="18" fill="#f2eee6" font-weight="650" text-anchor="start">Sustain pedal</text><text x="25" y="402" font-size="16" fill="#c0bbb2" font-weight="400" text-anchor="start">Hold notes after release</text><text x="25" y="434" font-size="17" fill="#c0bbb2" font-weight="400" text-anchor="start">0–63 Off</text><text x="290" y="434" font-size="17" fill="#efc66c" font-weight="650" text-anchor="end">64–127 On</text></g>
+</svg>
+<figcaption>CC7: volume. CC11: expression. CC10: pan. CC64: sustain, off at 0–63 and on at 64–127. These instrument controls are separate from mixer settings.</figcaption>
+</figure>
+</div>
+<!-- cc-visuals:end -->
+<h3>Categories &amp; safety</h3>
+<div class="cards">
+<div class="card"><h3>Bank &amp; program — protected</h3><p><strong>CC0 and CC32.</strong> Bank Select MSB/LSB choose a bank when combined with a separate Program Change message. Program Change is not a CC. Bank changes can select a different preset, so these stateful lanes are read-only until an ordered bank/program workflow is available.</p></div>
+<div class="card"><h3>Performance controllers</h3><p>Modulation, breath, foot, portamento time, volume, balance, pan, expression, and their defined LSB partners. Their meaning is instrument-dependent. <strong>CC84</strong> portamento control and <strong>CC88</strong> high-resolution velocity prefix depend on a following note event, so their editing is protected.</p></div>
+<div class="card"><h3>General purpose</h3><p><strong>CC16–19, CC48–51, CC80–83.</strong> These can be assigned by a receiver. Their numbers do not guarantee a particular knob or audible function.</p></div>
+<div class="card"><h3>Pedals &amp; switches</h3><p><strong>CC64–69.</strong> Sustain, portamento on/off, sostenuto, soft pedal, legato footswitch, and Hold 2. Values below 64 mean Off; 64–127 mean On. These editable bytes are sent only to MS Basic/SoundFont, and the instrument may ignore a pedal it does not implement. A CC64 lane takes over notation sustain messages; a CC66 lane takes over notation sostenuto messages on the corresponding channels while present.</p></div>
+<div class="card"><h3>Sound controllers</h3><p><strong>CC70–79.</strong> Variation, timbre, release, attack, brightness, decay, vibrato rate/depth/delay, and Sound Controller 10. A receiver can interpret or ignore them.</p></div>
+<div class="card"><h3>Effects</h3><p><strong>CC12–13, CC44–45, CC91–95.</strong> Effect control and effect depths such as reverb or chorus. These generic lanes do not configure MillerScore's mixer effect chain or sends.</p></div>
+<div class="card"><h3>Data entry — protected</h3><p><strong>CC6, CC38, CC96, CC97.</strong> Data Entry MSB/LSB and increment/decrement act on a selected parameter. Standalone values can modify unintended settings. Editing is blocked.</p></div>
+<div class="card"><h3>RPN/NRPN selection — protected</h3><p><strong>CC98–101.</strong> Registered and non-registered parameter selectors form ordered stateful sequences with data entry. This release does not provide a semantic RPN/NRPN sequence editor. Editing is blocked.</p></div>
+<div class="card"><h3>Undefined/reserved</h3><p>Numbers without a defined function are shown by CC number. A device may assign its own meaning. Editable storage does not imply a standardized sound or receiver support; consult the receiver's manual.</p></div>
+<div class="card"><h3>Channel mode — protected</h3><p><strong>CC120–127.</strong> All Sound Off, Reset All Controllers, Local Control, All Notes Off, Omni Off/On, Mono On, and Poly On. They can silence notes, reset state, or change routing. Editing is blocked; these are commands, not ordinary continuous curves.</p></div>
+</div>
+<h3>7-bit lanes &amp; paired 14-bit data</h3>
+<p>CC0–31 are the MSB positions and CC32–63 their LSB positions in the paired controller range. When a receiver supports a defined pair, its 14-bit value is <code>128 × MSB + LSB</code>, from 0 to 16383. Undefined positions do not acquire a standard meaning just because they fall in this range.</p>
+<p>MillerScore stores paired numbered lanes as separate 0–127 values and sends each editable lane as its own 7-bit byte to MS Basic/SoundFont. Pairing metadata does not guarantee an automatic combined 14-bit control, 14-bit interpolation, or a particular receiver response. RPN/NRPN selectors CC98–101 retain paired parameter-selection metadata but remain read-only and are never sent by generic automation. CC88 is a special velocity-prefix message, not an MSB/LSB partner in this range, and is also protected. Generic DAW CC lanes are not supported in Standard MIDI File (SMF) export.</p>
+<details id="cc-reference">
+<summary>Open the complete CC0–CC127 reference</summary>
+<p class="meta">Editor defaults below describe the catalog's starting value, not a universal MIDI device reset value. All lanes store bytes 0–127; commands can have narrower semantic meanings shown below. “Protected” blocks mutation and those 20 lanes are never sent. “Editable” means project storage and dispatch during main playback to MS Basic/SoundFont only; the instrument can ignore individual controllers. No generic routing is provided to Muse Sounds, VST3, or external MIDI output, or in SMF export.</p>
+<div class="table-wrap" role="region" aria-label="Complete MIDI controller reference, horizontally scrollable" tabindex="0">
+<table class="cc-table">
+<caption>All 128 numbered controller lanes</caption>
+<thead><tr><th scope="col">CC</th><th scope="col">Controller</th><th scope="col">Category</th><th scope="col">Default</th><th scope="col">Pair</th><th scope="col">Value meaning</th><th scope="col">Editing</th></tr></thead>
+<tbody>
+<!-- CC_REFERENCE_ROWS_BEGIN -->
+<tr data-cc="0"><th scope="row">CC0</th><td>Bank Select</td><td>Bank and program</td><td>0</td><td>LSB CC32</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="1"><th scope="row">CC1</th><td>Modulation Wheel</td><td>Performance</td><td>0</td><td>LSB CC33</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="2"><th scope="row">CC2</th><td>Breath Controller</td><td>Performance</td><td>0</td><td>LSB CC34</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="3"><th scope="row">CC3</th><td>CC 3</td><td>Undefined</td><td>0</td><td>LSB CC35</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="4"><th scope="row">CC4</th><td>Foot Controller</td><td>Performance</td><td>0</td><td>LSB CC36</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="5"><th scope="row">CC5</th><td>Portamento Time</td><td>Performance</td><td>0</td><td>LSB CC37</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="6"><th scope="row">CC6</th><td>Data Entry</td><td>Data entry</td><td>0</td><td>LSB CC38</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="7"><th scope="row">CC7</th><td>Channel Volume</td><td>Performance</td><td>0</td><td>LSB CC39</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="8"><th scope="row">CC8</th><td>Balance</td><td>Performance</td><td>64</td><td>LSB CC40</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="9"><th scope="row">CC9</th><td>CC 9</td><td>Undefined</td><td>0</td><td>LSB CC41</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="10"><th scope="row">CC10</th><td>Pan</td><td>Performance</td><td>64</td><td>LSB CC42</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="11"><th scope="row">CC11</th><td>Expression Controller</td><td>Performance</td><td>0</td><td>LSB CC43</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="12"><th scope="row">CC12</th><td>Effect Control 1</td><td>Effects</td><td>0</td><td>LSB CC44</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="13"><th scope="row">CC13</th><td>Effect Control 2</td><td>Effects</td><td>0</td><td>LSB CC45</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="14"><th scope="row">CC14</th><td>CC 14</td><td>Undefined</td><td>0</td><td>LSB CC46</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="15"><th scope="row">CC15</th><td>CC 15</td><td>Undefined</td><td>0</td><td>LSB CC47</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="16"><th scope="row">CC16</th><td>General Purpose Controller 1</td><td>General purpose</td><td>0</td><td>LSB CC48</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="17"><th scope="row">CC17</th><td>General Purpose Controller 2</td><td>General purpose</td><td>0</td><td>LSB CC49</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="18"><th scope="row">CC18</th><td>General Purpose Controller 3</td><td>General purpose</td><td>0</td><td>LSB CC50</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="19"><th scope="row">CC19</th><td>General Purpose Controller 4</td><td>General purpose</td><td>0</td><td>LSB CC51</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="20"><th scope="row">CC20</th><td>CC 20</td><td>Undefined</td><td>0</td><td>LSB CC52</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="21"><th scope="row">CC21</th><td>CC 21</td><td>Undefined</td><td>0</td><td>LSB CC53</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="22"><th scope="row">CC22</th><td>CC 22</td><td>Undefined</td><td>0</td><td>LSB CC54</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="23"><th scope="row">CC23</th><td>CC 23</td><td>Undefined</td><td>0</td><td>LSB CC55</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="24"><th scope="row">CC24</th><td>CC 24</td><td>Undefined</td><td>0</td><td>LSB CC56</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="25"><th scope="row">CC25</th><td>CC 25</td><td>Undefined</td><td>0</td><td>LSB CC57</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="26"><th scope="row">CC26</th><td>CC 26</td><td>Undefined</td><td>0</td><td>LSB CC58</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="27"><th scope="row">CC27</th><td>CC 27</td><td>Undefined</td><td>0</td><td>LSB CC59</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="28"><th scope="row">CC28</th><td>CC 28</td><td>Undefined</td><td>0</td><td>LSB CC60</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="29"><th scope="row">CC29</th><td>CC 29</td><td>Undefined</td><td>0</td><td>LSB CC61</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="30"><th scope="row">CC30</th><td>CC 30</td><td>Undefined</td><td>0</td><td>LSB CC62</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="31"><th scope="row">CC31</th><td>CC 31</td><td>Undefined</td><td>0</td><td>LSB CC63</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="32"><th scope="row">CC32</th><td>Bank Select LSB</td><td>Bank and program</td><td>0</td><td>MSB CC0</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="33"><th scope="row">CC33</th><td>Modulation Wheel LSB</td><td>Performance</td><td>0</td><td>MSB CC1</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="34"><th scope="row">CC34</th><td>Breath Controller LSB</td><td>Performance</td><td>0</td><td>MSB CC2</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="35"><th scope="row">CC35</th><td>CC 35</td><td>Undefined</td><td>0</td><td>MSB CC3</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="36"><th scope="row">CC36</th><td>Foot Controller LSB</td><td>Performance</td><td>0</td><td>MSB CC4</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="37"><th scope="row">CC37</th><td>Portamento Time LSB</td><td>Performance</td><td>0</td><td>MSB CC5</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="38"><th scope="row">CC38</th><td>Data Entry LSB</td><td>Data entry</td><td>0</td><td>MSB CC6</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="39"><th scope="row">CC39</th><td>Channel Volume LSB</td><td>Performance</td><td>0</td><td>MSB CC7</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="40"><th scope="row">CC40</th><td>Balance LSB</td><td>Performance</td><td>0</td><td>MSB CC8</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="41"><th scope="row">CC41</th><td>CC 41</td><td>Undefined</td><td>0</td><td>MSB CC9</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="42"><th scope="row">CC42</th><td>Pan LSB</td><td>Performance</td><td>0</td><td>MSB CC10</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="43"><th scope="row">CC43</th><td>Expression Controller LSB</td><td>Performance</td><td>0</td><td>MSB CC11</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="44"><th scope="row">CC44</th><td>Effect Control 1 LSB</td><td>Effects</td><td>0</td><td>MSB CC12</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="45"><th scope="row">CC45</th><td>Effect Control 2 LSB</td><td>Effects</td><td>0</td><td>MSB CC13</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="46"><th scope="row">CC46</th><td>CC 46</td><td>Undefined</td><td>0</td><td>MSB CC14</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="47"><th scope="row">CC47</th><td>CC 47</td><td>Undefined</td><td>0</td><td>MSB CC15</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="48"><th scope="row">CC48</th><td>General Purpose Controller 1 LSB</td><td>General purpose</td><td>0</td><td>MSB CC16</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="49"><th scope="row">CC49</th><td>General Purpose Controller 2 LSB</td><td>General purpose</td><td>0</td><td>MSB CC17</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="50"><th scope="row">CC50</th><td>General Purpose Controller 3 LSB</td><td>General purpose</td><td>0</td><td>MSB CC18</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="51"><th scope="row">CC51</th><td>General Purpose Controller 4 LSB</td><td>General purpose</td><td>0</td><td>MSB CC19</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="52"><th scope="row">CC52</th><td>CC 52</td><td>Undefined</td><td>0</td><td>MSB CC20</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="53"><th scope="row">CC53</th><td>CC 53</td><td>Undefined</td><td>0</td><td>MSB CC21</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="54"><th scope="row">CC54</th><td>CC 54</td><td>Undefined</td><td>0</td><td>MSB CC22</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="55"><th scope="row">CC55</th><td>CC 55</td><td>Undefined</td><td>0</td><td>MSB CC23</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="56"><th scope="row">CC56</th><td>CC 56</td><td>Undefined</td><td>0</td><td>MSB CC24</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="57"><th scope="row">CC57</th><td>CC 57</td><td>Undefined</td><td>0</td><td>MSB CC25</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="58"><th scope="row">CC58</th><td>CC 58</td><td>Undefined</td><td>0</td><td>MSB CC26</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="59"><th scope="row">CC59</th><td>CC 59</td><td>Undefined</td><td>0</td><td>MSB CC27</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="60"><th scope="row">CC60</th><td>CC 60</td><td>Undefined</td><td>0</td><td>MSB CC28</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="61"><th scope="row">CC61</th><td>CC 61</td><td>Undefined</td><td>0</td><td>MSB CC29</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="62"><th scope="row">CC62</th><td>CC 62</td><td>Undefined</td><td>0</td><td>MSB CC30</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="63"><th scope="row">CC63</th><td>CC 63</td><td>Undefined</td><td>0</td><td>MSB CC31</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="64"><th scope="row">CC64</th><td>Damper Pedal (Sustain)</td><td>Pedal and switch</td><td>0</td><td>None</td><td>0-63 = off; 64-127 = on</td><td>Editable</td></tr>
+<tr data-cc="65"><th scope="row">CC65</th><td>Portamento On/Off</td><td>Pedal and switch</td><td>0</td><td>None</td><td>0-63 = off; 64-127 = on</td><td>Editable</td></tr>
+<tr data-cc="66"><th scope="row">CC66</th><td>Sostenuto</td><td>Pedal and switch</td><td>0</td><td>None</td><td>0-63 = off; 64-127 = on</td><td>Editable</td></tr>
+<tr data-cc="67"><th scope="row">CC67</th><td>Soft Pedal</td><td>Pedal and switch</td><td>0</td><td>None</td><td>0-63 = off; 64-127 = on</td><td>Editable</td></tr>
+<tr data-cc="68"><th scope="row">CC68</th><td>Legato Footswitch</td><td>Pedal and switch</td><td>0</td><td>None</td><td>0-63 = off; 64-127 = on</td><td>Editable</td></tr>
+<tr data-cc="69"><th scope="row">CC69</th><td>Hold 2</td><td>Pedal and switch</td><td>0</td><td>None</td><td>0-63 = off; 64-127 = on</td><td>Editable</td></tr>
+<tr data-cc="70"><th scope="row">CC70</th><td>Sound Controller 1 (Sound Variation)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="71"><th scope="row">CC71</th><td>Sound Controller 2 (Timbre/Harmonic Intensity)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="72"><th scope="row">CC72</th><td>Sound Controller 3 (Release Time)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="73"><th scope="row">CC73</th><td>Sound Controller 4 (Attack Time)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="74"><th scope="row">CC74</th><td>Sound Controller 5 (Brightness)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="75"><th scope="row">CC75</th><td>Sound Controller 6 (Decay Time)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="76"><th scope="row">CC76</th><td>Sound Controller 7 (Vibrato Rate)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="77"><th scope="row">CC77</th><td>Sound Controller 8 (Vibrato Depth)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="78"><th scope="row">CC78</th><td>Sound Controller 9 (Vibrato Delay)</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="79"><th scope="row">CC79</th><td>Sound Controller 10</td><td>Sound controller</td><td>64</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="80"><th scope="row">CC80</th><td>General Purpose Controller 5</td><td>General purpose</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="81"><th scope="row">CC81</th><td>General Purpose Controller 6</td><td>General purpose</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="82"><th scope="row">CC82</th><td>General Purpose Controller 7</td><td>General purpose</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="83"><th scope="row">CC83</th><td>General Purpose Controller 8</td><td>General purpose</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="84"><th scope="row">CC84</th><td>Portamento Control</td><td>Performance</td><td>0</td><td>None</td><td>0-127 note number used by a portamento sequence</td><td>Protected</td></tr>
+<tr data-cc="85"><th scope="row">CC85</th><td>CC 85</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="86"><th scope="row">CC86</th><td>CC 86</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="87"><th scope="row">CC87</th><td>CC 87</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="88"><th scope="row">CC88</th><td>High Resolution Velocity Prefix</td><td>Performance</td><td>0</td><td>None</td><td>0-127 velocity LSB for a subsequent note event</td><td>Protected</td></tr>
+<tr data-cc="89"><th scope="row">CC89</th><td>CC 89</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="90"><th scope="row">CC90</th><td>CC 90</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="91"><th scope="row">CC91</th><td>Effects 1 Depth (Reverb Send)</td><td>Effects</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="92"><th scope="row">CC92</th><td>Effects 2 Depth (Tremolo)</td><td>Effects</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="93"><th scope="row">CC93</th><td>Effects 3 Depth (Chorus Send)</td><td>Effects</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="94"><th scope="row">CC94</th><td>Effects 4 Depth (Celeste/Detune)</td><td>Effects</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="95"><th scope="row">CC95</th><td>Effects 5 Depth (Phaser)</td><td>Effects</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="96"><th scope="row">CC96</th><td>Data Increment</td><td>Data entry</td><td>0</td><td>None</td><td>Data byte ignored; one increment/decrement per event</td><td>Protected</td></tr>
+<tr data-cc="97"><th scope="row">CC97</th><td>Data Decrement</td><td>Data entry</td><td>0</td><td>None</td><td>Data byte ignored; one increment/decrement per event</td><td>Protected</td></tr>
+<tr data-cc="98"><th scope="row">CC98</th><td>NRPN LSB</td><td>Parameter selection</td><td>0</td><td>MSB CC99</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="99"><th scope="row">CC99</th><td>NRPN MSB</td><td>Parameter selection</td><td>0</td><td>LSB CC98</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="100"><th scope="row">CC100</th><td>RPN LSB</td><td>Parameter selection</td><td>0</td><td>MSB CC101</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="101"><th scope="row">CC101</th><td>RPN MSB</td><td>Parameter selection</td><td>0</td><td>LSB CC100</td><td>0-127</td><td>Protected</td></tr>
+<tr data-cc="102"><th scope="row">CC102</th><td>CC 102</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="103"><th scope="row">CC103</th><td>CC 103</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="104"><th scope="row">CC104</th><td>CC 104</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="105"><th scope="row">CC105</th><td>CC 105</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="106"><th scope="row">CC106</th><td>CC 106</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="107"><th scope="row">CC107</th><td>CC 107</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="108"><th scope="row">CC108</th><td>CC 108</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="109"><th scope="row">CC109</th><td>CC 109</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="110"><th scope="row">CC110</th><td>CC 110</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="111"><th scope="row">CC111</th><td>CC 111</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="112"><th scope="row">CC112</th><td>CC 112</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="113"><th scope="row">CC113</th><td>CC 113</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="114"><th scope="row">CC114</th><td>CC 114</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="115"><th scope="row">CC115</th><td>CC 115</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="116"><th scope="row">CC116</th><td>CC 116</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="117"><th scope="row">CC117</th><td>CC 117</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="118"><th scope="row">CC118</th><td>CC 118</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="119"><th scope="row">CC119</th><td>CC 119</td><td>Undefined</td><td>0</td><td>None</td><td>0-127</td><td>Editable</td></tr>
+<tr data-cc="120"><th scope="row">CC120</th><td>All Sound Off</td><td>Channel mode</td><td>0</td><td>None</td><td>0 only</td><td>Protected</td></tr>
+<tr data-cc="121"><th scope="row">CC121</th><td>Reset All Controllers</td><td>Channel mode</td><td>0</td><td>None</td><td>0 only</td><td>Protected</td></tr>
+<tr data-cc="122"><th scope="row">CC122</th><td>Local Control On/Off</td><td>Channel mode</td><td>127</td><td>None</td><td>0 = off; 127 = on</td><td>Protected</td></tr>
+<tr data-cc="123"><th scope="row">CC123</th><td>All Notes Off</td><td>Channel mode</td><td>0</td><td>None</td><td>0 only</td><td>Protected</td></tr>
+<tr data-cc="124"><th scope="row">CC124</th><td>Omni Mode Off</td><td>Channel mode</td><td>0</td><td>None</td><td>0 only</td><td>Protected</td></tr>
+<tr data-cc="125"><th scope="row">CC125</th><td>Omni Mode On</td><td>Channel mode</td><td>0</td><td>None</td><td>0 only</td><td>Protected</td></tr>
+<tr data-cc="126"><th scope="row">CC126</th><td>Mono Mode On</td><td>Channel mode</td><td>0</td><td>None</td><td>Channel count; 0 = receiver voice count</td><td>Protected</td></tr>
+<tr data-cc="127"><th scope="row">CC127</th><td>Poly Mode On</td><td>Channel mode</td><td>0</td><td>None</td><td>0 only</td><td>Protected</td></tr>
+<!-- CC_REFERENCE_ROWS_END -->
+</tbody>
+</table>
+</div>
+</details>
+<a class="anchor-top" href="#top">Back to the guide overview</a>
+</section>
+
+<section id="sounds" aria-labelledby="sounds-title">
+<p class="eyebrow">06 · Choose a playback source</p><h2 id="sounds-title">SoundFont, VST3 &amp; optional Muse Sounds</h2>
+<p>Select an instrument track in DAW view. The track inspector's <strong>Sound</strong> selector groups installed resources by backend. This assignment is shared with the mixer. Wait for scanning or switching to finish, then audition a short phrase.</p>
+<h3>SoundFonts (.sf2)</h3>
+<ol>
+<li>Place a SoundFont you are licensed to use in a folder listed under <strong>Preferences &gt; Folders &gt; SoundFonts</strong>. The default user folder is <code>Documents\MillerScore\SoundFonts</code> for a release profile.</li>
+<li>Restart if the new SoundFont is not listed, then refresh the sound list.</li>
+<li>Choose a preset under <strong>SoundFonts</strong> for the selected instrument. Test playback, volume, and the note range.</li>
+</ol>
+<p>A SoundFont may contain many presets; choosing a file does not guarantee a suitable instrument or percussion mapping. Missing custom SoundFonts need to be installed again on another computer.</p>
+<h3>Compatible VST3 instruments &amp; effects</h3>
+<ol>
+<li>Use the plug-in vendor's installer to install a Windows 64-bit VST3 plug-in. Install its required sample content separately.</li>
+<li>Check the VST3 search folders in <strong>Preferences &gt; Folders</strong>, then use the rescan control after adding or updating a plug-in.</li>
+<li>Choose an instrument in the track's <strong>VST3</strong> sound group. Use the mixer for supported VST3 effects.</li>
+<li>Open the plug-in's editor where available, load its patch, and test save/reopen with a project copy.</li>
+</ol>
+<p>Compatibility is specific to the plug-in and version. Registration success does not prove playback stability. A notation extension in the <strong>Plugins</strong> folder is different from a VST3 audio plug-in. Vendor activation, licensing, and network services belong to that vendor.</p>
+<h3>Muse Sounds is optional</h3>
+<p>Muse Sounds sound libraries and the MuseSampler runtime are distributed separately by their provider. MillerScore does not bundle proprietary Muse Sounds content. Use the provider's installation instructions and terms if you choose to install it.</p>
+<p>When a compatible runtime and installed libraries are found, available resources appear under <strong>Muse Sounds</strong>. If none appear, use a SoundFont or compatible VST3 source. Absence of this optional component is not evidence that MillerScore was installed incorrectly.</p>
+<p>New-project sound-profile selection can fall back to the basic SoundFont profile when Muse Sounds is unavailable. Do not assume every previously saved Muse Sounds assignment automatically falls back on another computer. A missing assignment is kept and shown as unavailable; choose an installed source explicitly when needed.</p>
+<div class="note"><p><strong>Current integration limits.</strong> Independent note velocity is unavailable for Muse Sounds. Generic DAW CC automation is supported only by MS Basic/SoundFont and is not sent to Muse Sounds or VST3. Playback, seeking, looping, source changes, and mixer compatibility with a particular proprietary runtime still require validation on that installation.</p></div>
+<p>If the sound list fails to load, use <strong>Refresh list</strong>. A missing or failed resource should be investigated before changing the saved assignment. Save a copy if you need to substitute a source for another machine.</p>
+</section>
+
+<section id="mixer" aria-labelledby="mixer-title">
+<p class="eyebrow">07 · Balance your project</p><h2 id="mixer-title">Mixer workflow</h2>
+<p>The mixer controls the project's playback tracks. Choose sounds, balance level and pan, and use mute or solo to isolate an instrument. DAW instrument-track controls share the existing project audio settings rather than creating a second independent mixer.</p>
+<ol>
+<li>Play a representative passage and set instrument levels without clipping the output.</li>
+<li>Check mute and solo before diagnosing a silent sound source.</li>
+<li>Add supported effects or adjust sends where those controls are available. Effect compatibility depends on the installed backend and plug-in.</li>
+<li>Save and reopen a project copy after making significant sound or effect changes.</li>
+</ol>
+<p>Generic CC7/CC10 curves change the receiving SoundFont instrument's volume/pan during main playback; they remain separate from mixer level/pan controls. The numbered lanes retain raw 7-bit MIDI values. Effect-depth CC lanes do not automate mixer sends. Audio tracks expose their own mute and level state; do not assume every score-track mixer feature is available on imported audio tracks.</p>
+<p>Full Read, Touch, Latch, and Write automation workflows are still incomplete. A displayed control does not establish full automation recording or identical behavior in every sound engine.</p>
+</section>
+
+<section id="media" aria-labelledby="media-title">
+<p class="eyebrow">08 · Work with external audio</p><h2 id="media-title">Audio import &amp; recording</h2>
+<h3>Import WAV, MP3, or FLAC</h3>
+<ol>
+<li>Save the source audio in a stable folder you will keep with the project.</li>
+<li>In DAW view, choose <strong>Audio track</strong>, position the playhead, and use that track's import button. Double-clicking its audio lane also opens import.</li>
+<li>Choose a supported file. The clip is placed at the chosen musical tick; drag it to change its start position.</li>
+<li>Play the passage with the score, then save the native project.</li>
+</ol>
+<p>Files are decoded into memory and referenced by their filesystem paths; they are not embedded or copied into the score archive. Clip starts follow the tempo timeline, while the source recording keeps its fixed duration. There is no claim of automatic tempo matching or time stretching.</p>
+<p>Long files can use substantial memory. The current audio-track engine render is limited to the first 30 minutes of a track's rendered timeline; material beyond that boundary may not play. Split or shorten material and audition the full arrangement.</p>
+<div class="note warning"><p><strong>Before moving or sharing a project:</strong> copy its audio files as well as its score. Existing clip references may still point to the original locations. This release has no complete portable-media collection or relink workflow. Restore the original location or reimport the media at the correct tick.</p></div>
+<h3>Record an ASIO input</h3>
+<ol>
+<li>Select an ASIO driver and an interface with input channels in <strong>Preferences &gt; Audio &amp; MIDI</strong>.</li>
+<li>Add an audio track and use its <strong>R</strong> button to arm it. Only one audio track can be armed at a time.</li>
+<li>Place the playhead at the intended start. Choose <strong>Record</strong>; the score plays while the interface input is captured.</li>
+<li>Choose <strong>Stop</strong> to finish the take. Check the clip by listening before recording another take.</li>
+</ol>
+<p>Recording currently captures up to two ASIO input channels and writes 32-bit float WAV. For a saved score, takes go into a sibling <code>&lt;score name&gt; Audio</code> folder. For an unsaved score, they go into <code>Documents\MillerScore\Recordings</code>. Saving the score later does not automatically relocate those files.</p>
+<p>Input selection, monitoring, and latency compensation are incomplete. Do not rely on sample-accurate overdub alignment. If a take has gaps, try a larger ASIO buffer and reduce processing load. A “Nothing was recorded” message means you should check the interface inputs and that playback actually started.</p>
+</section>
+
+<section id="save" aria-labelledby="save-title">
+<p class="eyebrow">09 · Preserve your work</p><h2 id="save-title">Saving, backups &amp; recovery</h2>
+<p>Use <strong>File &gt; Save</strong> for the native score project, and <strong>Save As</strong> for a separate working copy. Keep the native project alongside its external recordings and imported media. An audio export or printed score is not a complete editable project backup.</p>
+<p>Configure <strong>Auto save</strong> in <strong>Preferences &gt; Save &amp; publish</strong>. Autosave is recovery assistance; continue saving normally. The optional backup-before-save setting keeps the previous disk version in the hidden <code>.mscbackup</code> folder next to the score, with a name such as <code>.Example.mscz~</code>.</p>
+<h3>After an unexpected exit</h3>
+<ol>
+<li>Preserve the original score, its backup folder, and external media before making further changes.</li>
+<li>Restart MillerScore. If a recovery prompt offers unsaved work, inspect the recovered score and save it to a new name.</li>
+<li>Check notes, performance edits, sound assignments, and audio references. Replay a short passage.</li>
+<li>If recovery is unavailable, work from a copy of your last known-good score or backup. Keep the failed file for a private support investigation if needed.</li>
+</ol>
+<div class="note warning"><p><strong>Missing-media warning:</strong> unavailable clips are marked <strong>[Missing]</strong> and remain silent. Their file references and start positions are retained. Restore readable files at the expected locations and reopen the score. Preserve a backup of the project and media before relocating or replacing them.</p></div>
+<p>Cloud-synchronized folders can add locks, offline placeholders, or delayed writes. Make sure the project and its media are available locally. A separate versioned backup protects against accidental overwrite and sync errors; autosave does not replace that backup.</p>
+</section>
+
+<section id="troubleshooting" aria-labelledby="troubleshooting-title">
+<p class="eyebrow">10 · Diagnose one change at a time</p><h2 id="troubleshooting-title">Troubleshooting</h2>
+<details><summary>MillerScore does not start or exits immediately</summary>
+<p>Confirm the entire ZIP was extracted and launch from its extracted folder. Keep DLLs, QML, sounds, and other shipped resources with the executable. Try a freshly extracted copy in a new writable local folder, then test without opening your previous score.</p>
+<p>If a new copy fails too, record the version, Windows version, and exact steps. Keep the latest application and launcher logs. Check Windows Event Viewer under <strong>Windows Logs &gt; Application</strong> for the faulting application/module. Preserve preferences before investigating corrupt settings; avoid deleting your only project or media copy.</p>
+</details>
+<details><summary>The window is blank, clipped, or has graphics glitches</summary>
+<p>Try a normal window size and a standard Windows display scale, then restart. Check for an updated graphics driver from your device vendor. Note whether the problem affects the score, DAW, or both, and attach a redacted screenshot. A display-specific workaround needs confirmation on your device.</p>
+</details>
+<details><summary>Playback is silent or crackles</summary>
+<p>Check the Windows output and volume, the chosen audio device, mute/solo, and the instrument sound assignment. Try a simple score with a SoundFont to isolate plug-in or optional-library issues. For crackles, try a larger audio buffer and fewer expensive instruments/effects.</p>
+<p>If an interface was unplugged, reconnect it and reselect the device, or choose another available output. For a SoundFont instrument, also check generic CC7/CC11 automation for zero values that can attenuate or silence it. CC automation does not supply a missing sound library or repair an unavailable audio device.</p>
+</details>
+<details><summary>A VST3 is missing, fails scanning, or causes a crash</summary>
+<p>Confirm it is a Windows 64-bit VST3, its content and activation are installed, and its folder is included in the VST3 search paths. Rescan after installation. Preserve the scan log and test a SoundFont assignment in a project copy.</p>
+<p>If the problem began after adding a plug-in, isolate that plug-in using its vendor's normal repair/uninstall workflow. Record its name and version privately. Do not upload licensed binaries, activation files, or sample content to an issue.</p>
+</details>
+<details><summary>Muse Sounds does not appear or a sound is unavailable</summary>
+<p>The component is optional and installed separately. Confirm the provider's installation completed and a compatible MuseSampler runtime and sound library are present. Restart MillerScore and refresh the sound list. Choose an installed SoundFont or VST3 when you need to continue.</p>
+<p>A missing assignment can be retained in the project. Use a separate copy when substituting a sound, and audition the replacement. Do not treat an absent optional library as an application-installation failure.</p>
+</details>
+<details><summary>An audio clip is missing or a recording is empty</summary>
+<p>Restore imported media at its original path or reimport it at the original start tick. Preserve the original project before saving after a missing-media warning. For recording, confirm an audio track is armed, the ASIO device exposes inputs, and playback starts.</p>
+<p>Recordings are separate WAV files. Check the score's sibling Audio folder or the unsaved-project Recordings folder. A failed or interrupted take is not guaranteed recoverable.</p>
+</details>
+<details><summary>The update check fails or the itch app does not open</summary>
+<p>Check your connection, proxy/firewall rules, and whether GitHub is reachable. Missing release metadata, HTTP 404, rate limits, or malformed responses can prevent a check. That result does not establish whether you have the newest store build.</p>
+<p>Open your itch library or the official MillerScore download page directly. Sign in with the account that has access. A source-only GitHub release has no bundled Windows installer. If no itch handler is registered, use the browser download path; do not enter itch credentials into MillerScore.</p>
+</details>
+<details><summary>A controller curve saves but makes no audible change</summary>
+<p>Check whether it is a numbered generic CC lane or a dedicated channel/note control. Generic CC automation requires a confirmed MS Basic/SoundFont assignment and main score playback; note previews do not apply it. SoundFonts can ignore controllers, especially undefined numbers or LSB partners. Muse Sounds, VST3, and external MIDI output do not receive generic lanes. Protected bank, note-state, data-entry, RPN/NRPN, and channel-mode controllers are never sent. See the <a href="#controllers">controller support section</a> before changing your sound source.</p>
+</details>
+<p>Report a reproducible problem through the <a href="https://github.com/dulcedelechedev/millerscore/issues">MillerScore issue tracker</a>. Include the application version, concise steps, expected and actual behavior, the sound backend, and relevant redacted log lines. Use a small score you are allowed to share.</p>
+</section>
+
+<section id="privacy" aria-labelledby="privacy-title">
+<p class="eyebrow">11 · Keep reports private</p><h2 id="privacy-title">Logs, crash reports &amp; privacy</h2>
+<p>For the standard Windows release profile, the application data root is normally <code>%LOCALAPPDATA%\MillerScore\MillerScore</code>. Open that location in File Explorer. Development builds may use a separate <code>MillerScoreDevelopment</code> profile; portable configurations can use a different root.</p>
+<ul>
+<li><strong>Application logs:</strong> the <code>logs</code> folder, with timestamped MillerScore log files. Older matching logs are periodically removed.</li>
+<li><strong>Plug-in scan logs:</strong> <code>logs\audiopluginregistration_YYMMDD.log</code>, when plug-in registration has run.</li>
+<li><strong>Crashpad database/dumps:</strong> <code>logs\dumps</code>, when the packaged build includes and starts crash handling. A crash may not produce a dump.</li>
+<li><strong>Before the application starts:</strong> the launcher may show a Windows error dialog instead of creating an application log. Record its error number and redact any personal path before sharing a screenshot.</li>
+</ul>
+<p>Crash-report uploads are disabled by default, and this release has no crash-upload server configured. Logs can include score names, media and plug-in paths, device details, and user-folder names. Crash dumps can contain process memory and private content. Review and redact diagnostic files before sharing; do not post an unreviewed diagnostic archive or dump to a public issue.</p>
+<p>Update checks contact GitHub's public Releases API. GitHub receives ordinary request information, including the network address and request headers. Disable automatic checks in <strong>Preferences &gt; General &gt; Updates</strong> if you do not want automatic requests.</p>
+<p>Scores, audio references, recordings, and preferences are local files. Cloud folders, publishing/sharing actions, browser links, itch.io, third-party plug-ins, and optional Muse Sounds services have their own behavior and privacy terms. Review the <a href="https://github.com/dulcedelechedev/millerscore/blob/main/PRIVACY.md">MillerScore privacy notice</a> before using online features or sending reports.</p>
+</section>
+
+<section id="license" aria-labelledby="license-title">
+<p class="eyebrow">12 · Free software, independent project</p><h2 id="license-title">License, source &amp; attribution</h2>
+<p>MillerScore is free software under the GNU General Public License version 3. The license allows running, studying, modifying, and redistributing the covered software under its terms, including the applicable source and notice requirements when distributing it. The application is supplied without warranty as described in the license.</p>
+<p>Read the project's <a href="https://github.com/dulcedelechedev/millerscore/blob/main/LICENSE.txt">complete license and font exception</a> and the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPLv3 text</a>. Source and build instructions are available in the <a href="https://github.com/dulcedelechedev/millerscore">public MillerScore repository</a>. Use the source tag or commit corresponding to your installed version when available.</p>
+<p>MillerScore is an independent community fork based on MuseScore Studio, published by DulceDeLecheDEV. It is not affiliated with or endorsed by Muse Group or the MuseScore project. Original copyright, attribution, and third-party license notices are preserved. MuseScore and related marks belong to their respective owners.</p>
+<p>Separately installed SoundFonts, VST3 plug-ins, MuseSampler, Muse Sounds, and sample libraries retain their own licenses. A MillerScore download does not grant additional rights to that content.</p>
+</section>
+
+<section id="early-access" aria-labelledby="early-title">
+<p class="eyebrow">13 · Know the current boundaries</p><h2 id="early-title">Early Access limitations &amp; changes</h2>
+<ul>
+<li>Generic CC automation is sent only to MS Basic/SoundFont during main playback, with an instrument-dependent response. The 20 protected bank-selection, parameter-state, note-state, and channel-mode controllers cannot be edited and are never sent. Muse Sounds, VST3, external MIDI output, and SMF export do not support these generic DAW lanes.</li>
+<li>Per-note pan, release velocity, and filter controls are unavailable. Muse Sounds has no independent per-note velocity control.</li>
+<li>Recording input selection, monitoring, and latency compensation are incomplete; only one audio track is armed at a time.</li>
+<li>Imported audio and takes are externally referenced. Missing-media recovery, relinking, portable collection, and long-track handling have limits.</li>
+<li>Full automation recording modes are incomplete. MIDI/MusicXML interchange does not promise complete DAW project fidelity.</li>
+<li>Hardware, graphics, plug-in, and optional proprietary-runtime compatibility still needs wider validation.</li>
+</ul>
+<h3>v0.1.0 feature baseline</h3>
+<p>The Early Access series introduces connected Score and DAW views, a projected piano roll with performance overrides, a complete numbered controller catalog with safety restrictions, SoundFont/VST3 sound assignment, optional separately installed Muse Sounds resources, WAV/MP3/FLAC tracks, ASIO recording, a project mixer, and GitHub-based release checks with itch.io handoff.</p>
+<p>This is a feature summary, not a claim that every workflow or backend has passed release validation. For changes tied to a published version, read its <a href="https://github.com/dulcedelechedev/millerscore/releases">release notes</a> and the <a href="https://dulcedelechedev.itch.io/millerscore">store's available downloads</a>.</p>
+<a class="anchor-top" href="#top">Back to the guide overview</a>
+</section>
+<footer>
+<p>MillerScore · DulceDeLecheDEV · Independent MuseScore Studio fork</p>
+<p>This guide works locally without scripts, remote fonts, or a network connection. External links open their named services when you choose them.</p>
+</footer>
+</main>
+</div>
+</body>
+</html>

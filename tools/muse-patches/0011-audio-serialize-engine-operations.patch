@@ -1,0 +1,69 @@
+diff --git a/framework/audio/engine/internal/audioengine.cpp b/framework/audio/engine/internal/audioengine.cpp
+index b5567a32b..4d9edab86 100644
+--- a/framework/audio/engine/internal/audioengine.cpp
++++ b/framework/audio/engine/internal/audioengine.cpp
+@@ -22,6 +22,8 @@
+ 
+ #include "audioengine.h"
+ 
++#include <algorithm>
++
+ #include "global/defer.h"
+ 
+ #include "audio/common/audiosanitizer.h"
+@@ -169,25 +171,43 @@ async::Channel<OutputSpec> AudioEngine::outputSpecChanged() const
+ 
+ void AudioEngine::execOperation(OperationType type, const Operation& func)
+ {
+-    // wait end of processing
+-    while (m_processing) {
+-        LOGD() << "wait end of processing";
+-        using namespace std::chrono_literals;
+-        std::this_thread::sleep_for(1ms);
++    const OperationType oldOperationType = m_operationType;
++
++    //! NOTE An operation can run inside another one on this thread: during an export
++    // (LongOperation) the writer processes RPC messages, and playback data streams arrive
++    // as QuickOperations. A nested operation must never weaken the outer one, or the audio
++    // callback would process the graph in the middle of the offline render; and it must not
++    // wait for the callback or take the wait mutex again, the outer operation already did.
++    const bool nested = oldOperationType == OperationType::QuickOperation
++                        || oldOperationType == OperationType::LongOperation;
++    const OperationType operationType = std::max(oldOperationType, type);
++
++    //! NOTE Publish the operation before waiting for the processing to end, never after:
++    // process() sets m_processing and then reads m_operationType, so with this order (both
++    // sequentially consistent) a callback either sees the operation or is waited for here.
++    // Waiting first let a callback that started in between read NoOperation and process
++    // the graph while func() was changing it.
++    m_operationType = operationType;
++    AudioSanitizer::setOperationType(operationType);
++
++    const bool lockQuick = !nested && operationType == OperationType::QuickOperation;
++
++    if (!nested) {
++        // wait end of processing
++        while (m_processing) {
++            LOGD() << "wait end of processing";
++            using namespace std::chrono_literals;
++            std::this_thread::sleep_for(1ms);
++        }
+     }
+ 
+-    OperationType oldOperationType = m_operationType;
+-
+-    m_operationType = type;
+-    AudioSanitizer::setOperationType(type);
+-
+-    if (m_operationType == OperationType::QuickOperation) {
++    if (lockQuick) {
+         m_quickOperationWaitMutex.lock();
+     }
+ 
+     func();
+ 
+-    if (m_operationType == OperationType::QuickOperation) {
++    if (lockQuick) {
+         m_quickOperationWaitMutex.unlock();
+     }
+ 

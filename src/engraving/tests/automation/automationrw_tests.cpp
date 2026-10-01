@@ -1,0 +1,285 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseScore-CLA-applies
+ *
+ * MuseScore Studio
+ * Music Composition & Notation
+ *
+ * Copyright (C) 2026 MuseScore Limited and others
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#include <gtest/gtest.h>
+
+#include <array>
+#include <limits>
+#include <string>
+
+#include "engraving/automation/automationdata.h"
+#include "engraving/automation/internal/automationrw.h"
+
+#include "automation/utils/automationtestutils.h"
+
+using namespace mu::engraving;
+
+class AutomationRW_Tests : public ::testing::Test
+{
+};
+
+TEST_F(AutomationRW_Tests, RoundTrip_StaffScope)
+{
+    // [GIVEN] Two staff-scoped curves: key1 holds a generated point (itemId set) plus
+    // an explicit-arrival and a FromPrevious point; key2 holds a custom point (no itemId)
+    AutomationData data;
+    AutomationCurveKey key1 = AutomationCurveKey::staff(AutomationType::Dynamics, muse::ID(1));
+    AutomationCurveKey key2 = AutomationCurveKey::staff(AutomationType::Dynamics, muse::ID(2), size_t(2));
+
+    const AutomationPoint p1 = generatedPoint(0.3, 0.5);
+    const AutomationPoint p2 = customPoint(0.6, 0.8);
+
+    AutomationPoint explicitArrival;
+    explicitArrival.value.outValue = 0.5;
+    explicitArrival.value.inValue = AutomationPoint::ExplicitArrival { explicitArrival.value.outValue, AutomationPoint::Ease::none() };
+    explicitArrival.generated = true;
+
+    AutomationPoint fromPrevious;
+    fromPrevious.value.inValue = AutomationPoint::ArrivalFromPrevious {};
+    fromPrevious.value.outValue = 0.7;
+    fromPrevious.generated = true;
+
+    AutomationCurveMap curves;
+    curves[key1] = { { 100, p1 }, { 300, explicitArrival }, { 400, fromPrevious } };
+    curves[key2] = { { 200, p2 } };
+    data.setCurves(curves);
+
+    // [WHEN] Serialized (including generated points) and deserialized
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true /*writeGenerated*/));
+
+    // [THEN] Both curves are preserved with their original points
+    checkCurvesMatch(loaded.curve(key1), data.curve(key1));
+    checkCurvesMatch(loaded.curve(key2), data.curve(key2));
+
+    // [THEN] itemId presence and exact value survive the round trip
+    EXPECT_EQ(loaded.curve(key1).at(100).itemId, p1.itemId);
+    EXPECT_FALSE(loaded.curve(key2).at(200).itemId.has_value());
+
+    // [THEN] Each point's inValue type survives the round trip
+    const AutomationCurve& loadedCurve1 = loaded.curve(key1);
+    EXPECT_TRUE(std::holds_alternative<AutomationPoint::ExplicitArrival>(loadedCurve1.at(300).value.inValue));
+    EXPECT_TRUE(std::holds_alternative<AutomationPoint::ArrivalFromPrevious>(loadedCurve1.at(400).value.inValue));
+}
+
+TEST_F(AutomationRW_Tests, RoundTrip_InstrumentScope)
+{
+    // [GIVEN] An instrument-scoped curve
+    // (e.g. Pan, owned by a specific part+instrument, not any particular staff)
+    AutomationData data;
+
+    InstrumentTrackId trackId;
+    trackId.partId = muse::ID(3);
+    trackId.instrumentId = u"instrument1";
+    AutomationCurveKey key = AutomationCurveKey::instrument(AutomationType::Pan, trackId);
+
+    const AutomationPoint p = customPoint(0.7, 0.9);
+
+    AutomationCurveMap curves;
+    curves[key] = { { 600, p } };
+    data.setCurves(curves);
+
+    // [WHEN] Serialized and deserialized
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true /*writeGenerated*/));
+
+    // [THEN] The curve is preserved with its original points
+    checkCurvesMatch(loaded.curve(key), data.curve(key));
+
+    // [THEN] The loaded key is exactly equal to the original
+    ASSERT_EQ(loaded.curves().size(), 1u);
+
+    const auto loadedKeyIt = loaded.curves().find(key);
+    ASSERT_NE(loadedKeyIt, loaded.curves().end());
+    EXPECT_EQ(loadedKeyIt->first, key);
+    EXPECT_EQ(loadedKeyIt->first.type, AutomationType::Pan);
+    ASSERT_TRUE(loadedKeyIt->first.trackId().has_value());
+    EXPECT_EQ(loadedKeyIt->first.trackId()->partId, trackId.partId);
+    EXPECT_EQ(loadedKeyIt->first.trackId()->instrumentId, trackId.instrumentId);
+}
+
+TEST_F(AutomationRW_Tests, RoundTrip_GlobalScope)
+{
+    // [GIVEN] A global-scoped curve (e.g. Volume with no owning staff/instrument)
+    AutomationData data;
+    AutomationCurveKey key = AutomationCurveKey::global(AutomationType::Volume);
+
+    const AutomationPoint p = customPoint(0.2, 0.4);
+
+    AutomationCurveMap curves;
+    curves[key] = { { 500, p } };
+    data.setCurves(curves);
+
+    // [WHEN] Serialized and deserialized
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true /*writeGenerated*/));
+
+    // [THEN] The curve is preserved with its original points
+    checkCurvesMatch(loaded.curve(key), data.curve(key));
+
+    // [THEN] The loaded key is exactly equal to the original
+    ASSERT_EQ(loaded.curves().size(), 1u);
+
+    const auto loadedKeyIt = loaded.curves().find(key);
+    ASSERT_NE(loadedKeyIt, loaded.curves().end());
+    EXPECT_EQ(loadedKeyIt->first, key);
+    EXPECT_EQ(loadedKeyIt->first.type, AutomationType::Volume);
+    EXPECT_FALSE(loadedKeyIt->first.trackId().has_value());
+    EXPECT_FALSE(loadedKeyIt->first.staffId().has_value());
+}
+
+TEST_F(AutomationRW_Tests, RoundTrip_InstrumentPitch)
+{
+    AutomationData data;
+    InstrumentTrackId trackId;
+    trackId.partId = muse::ID(9);
+    trackId.instrumentId = u"fine-pitch-instrument";
+    const AutomationCurveKey key = AutomationCurveKey::instrument(AutomationType::Pitch, trackId);
+
+    AutomationCurveMap curves;
+    curves[key] = { { 0, customPoint(0.5, 0.5) }, { 960, customPoint(0.75, 0.75) } };
+    data.setCurves(curves);
+
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true));
+
+    checkCurvesMatch(loaded.curve(key), data.curve(key));
+    ASSERT_EQ(loaded.curves().size(), 1u);
+    EXPECT_EQ(loaded.curves().begin()->first.type, AutomationType::Pitch);
+    EXPECT_EQ(loaded.curves().begin()->first.trackId(), std::optional<InstrumentTrackId>(trackId));
+}
+
+TEST_F(AutomationRW_Tests, RoundTrip_AllMidiControllersWithStableLaneIds)
+{
+    InstrumentTrackId trackId;
+    trackId.partId = muse::ID(12);
+    trackId.instrumentId = u"midi-controller-instrument";
+
+    AutomationData data;
+    AutomationCurveMap curves;
+    constexpr std::array<int, 6> VALUES { 0, 1, 63, 64, 126, 127 };
+    for (int cc = 0; cc < 128; ++cc) {
+        const AutomationCurveKey key = AutomationCurveKey::midiLane(trackId, "cc:" + std::to_string(cc));
+        for (size_t valueIndex = 0; valueIndex < VALUES.size(); ++valueIndex) {
+            const double normalized = VALUES[valueIndex] / 127.0;
+            curves[key][cc * 100 + int(valueIndex)] = customPoint(normalized, normalized);
+        }
+    }
+    data.setCurves(curves);
+
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true));
+
+    ASSERT_EQ(loaded.curves().size(), 128u);
+    for (int cc = 0; cc < 128; ++cc) {
+        const AutomationCurveKey key = AutomationCurveKey::midiLane(trackId, "cc:" + std::to_string(cc));
+        ASSERT_TRUE(key.isValid());
+        checkCurvesMatch(loaded.curve(key), data.curve(key));
+    }
+}
+
+TEST_F(AutomationRW_Tests, RoundTrip_NonCcMidiLaneIdentifiers)
+{
+    InstrumentTrackId trackId;
+    trackId.partId = muse::ID(13);
+    trackId.instrumentId = u"expressive-instrument";
+
+    const std::array<std::string, 9> laneIds {
+        "pitchBend", "channelPressure", "polyPressure:60", "programChange", "bankSelect",
+        "rpn:0:0", "nrpn:12:34", "note:velocity", "note:releaseVelocity"
+    };
+
+    AutomationData data;
+    AutomationCurveMap curves;
+    int tick = 0;
+    for (const std::string& laneId : laneIds) {
+        curves[AutomationCurveKey::midiLane(trackId, laneId)] = { { tick++, customPoint(0.5, 0.5) } };
+    }
+    data.setCurves(curves);
+
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true));
+    ASSERT_EQ(loaded.curves().size(), laneIds.size());
+    for (const std::string& laneId : laneIds) {
+        const AutomationCurveKey key = AutomationCurveKey::midiLane(trackId, laneId);
+        checkCurvesMatch(loaded.curve(key), data.curve(key));
+    }
+}
+
+TEST_F(AutomationRW_Tests, RoundTrip_FourteenBitBoundaries)
+{
+    InstrumentTrackId trackId;
+    trackId.partId = muse::ID(14);
+    trackId.instrumentId = u"fourteen-bit-instrument";
+    const AutomationCurveKey pitchBend = AutomationCurveKey::midiLane(trackId, "pitchBend");
+    constexpr std::array<int, 6> VALUES { 0, 1, 8191, 8192, 16382, 16383 };
+
+    AutomationData data;
+    AutomationCurveMap curves;
+    for (size_t i = 0; i < VALUES.size(); ++i) {
+        const double normalized = VALUES[i] / 16383.0;
+        curves[pitchBend][int(i)] = customPoint(normalized, normalized);
+    }
+    data.setCurves(curves);
+
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true));
+    checkCurvesMatch(loaded.curve(pitchBend), data.curve(pitchBend));
+}
+
+TEST_F(AutomationRW_Tests, DenseMidiLanePreservesSortedAndMaximumTicks)
+{
+    const auto key = AutomationCurveKey::midiLane({ muse::ID(15), u"dense-instrument" }, "cc:74");
+    AutomationCurveMap curves;
+    for (int tick = 10000; tick >= 0; --tick) {
+        const double value = (tick % 128) / 127.0;
+        curves[key][tick] = customPoint(value, value);
+    }
+    curves[key][std::numeric_limits<int>::max()] = customPoint(1, 1);
+    AutomationData data;
+    data.setCurves(curves);
+    AutomationData loaded;
+    AutomationRW::read(loaded, AutomationRW::write(data, true));
+    checkCurvesMatch(loaded.curve(key), data.curve(key));
+    EXPECT_EQ(loaded.curve(key).begin()->first, 0);
+    EXPECT_EQ(loaded.curve(key).rbegin()->first, std::numeric_limits<int>::max());
+}
+
+TEST_F(AutomationRW_Tests, DuplicateMidiTickKeepsFirstSavedEventAndMalformedJsonKeepsExistingData)
+{
+    const auto key = AutomationCurveKey::midiLane({ muse::ID(16), u"duplicate-instrument" }, "cc:64");
+    const char* duplicateJson = R"JSON([
+        {"type":"MidiLane","laneId":"cc:64","partId":"16","instrumentId":"duplicate-instrument","points":[
+            {"tick":480,"inValue":0,"outValue":0},
+            {"tick":0,"inValue":1,"outValue":1},
+            {"tick":480,"inValue":1,"outValue":1}
+        ]}
+    ])JSON";
+    AutomationData loaded;
+    AutomationRW::read(loaded, muse::ByteArray(duplicateJson));
+    ASSERT_EQ(loaded.curve(key).size(), 2u);
+    EXPECT_EQ(loaded.curve(key).begin()->first, 0);
+    EXPECT_EQ(loaded.curve(key).at(480).value.outValue, 0.0);
+    const auto before = loaded.curves();
+    AutomationRW::read(loaded, muse::ByteArray("invalid JSON"));
+    EXPECT_EQ(loaded.curves(), before);
+}

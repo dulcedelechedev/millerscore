@@ -1,0 +1,91 @@
+diff --git a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
+index 33066b3c4..1b894922a 100644
+--- a/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
++++ b/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
+@@ -237,6 +237,12 @@ bool FluidSynth::handleEvent(const midi::Event& event)
+     case Event::Opcode::ProgramChange: {
+         fluid_synth_program_change(m_fluid->synth, event.channel(), event.program());
+     } break;
++    case Event::Opcode::ChannelPressure: {
++        ret = fluid_synth_channel_pressure(m_fluid->synth, event.channel(), event.data7());
++    } break;
++    case Event::Opcode::PolyPressure: {
++        ret = fluid_synth_key_pressure(m_fluid->synth, event.channel(), event.note(), event.data7());
++    } break;
+     case Event::Opcode::PitchBend: {
+         ret = setPitchBend(event.channel(), event.pitchBend14());
+     } break;
+diff --git a/framework/midi/midievent.h b/framework/midi/midievent.h
+index 687601897..5371bcea6 100644
+--- a/framework/midi/midievent.h
++++ b/framework/midi/midievent.h
+@@ -730,7 +730,7 @@ struct Event {
+         assertMessageType({ MessageType::ChannelVoice20 });
+         if (opcode() == Opcode::ProgramChange) {
+             m_data[0] |= 0x01; //set BankValid bit
+-            uint32_t mask = (bank & 0x3F80) << 8 | (bank & 0x7F);
++            uint32_t mask = (bank & 0x3F80) << 1 | (bank & 0x7F);
+             m_data[1] &= 0xFFFF0000;
+             m_data[1] |= mask;
+             return;
+@@ -857,13 +857,14 @@ struct Event {
+             //D2.4
+             case Opcode::ProgramChange: {
+                 if (isBankValid()) {
++                    const uint16_t bankValue = bank();
+                     auto e = basic10Event;
+                     e.setOpcode(Opcode::ControlChange);
+                     e.setIndex(0);
+-                    e.setData((m_data[1] & 0x7F00) >> 8);
++                    e.setData((bankValue >> 7) & 0x7F);
+                     events.push_back(e);
+-                    e.setIndex(0);
+-                    e.setData(m_data[1] & 0x7F);
++                    e.setIndex(32);
++                    e.setData(bankValue & 0x7F);
+                     events.push_back(e);
+                 }
+                 auto e = basic10Event;
+diff --git a/framework/midi/tests/midievent_tests.cpp b/framework/midi/tests/midievent_tests.cpp
+index b266f6f12..bf2d7e95d 100644
+--- a/framework/midi/tests/midievent_tests.cpp
++++ b/framework/midi/tests/midievent_tests.cpp
+@@ -235,6 +235,26 @@ TEST_F(EventTests, ToMidi10_NoteOn)
+     EXPECT_EQ(events[0].messageType(), Event::MessageType::ChannelVoice10);
+ }
+ 
++TEST_F(EventTests, ToMidi10_ProgramChangePreservesBankMsbAndLsb)
++{
++    Event e(Event::Opcode::ProgramChange, Event::MessageType::ChannelVoice20);
++    e.setProgram(42);
++    e.setBank((3u << 7) | 17u);
++    EXPECT_EQ(e.bank(), (3u << 7) | 17u);
++
++    std::vector<Event> events = e.toMIDI10();
++
++    ASSERT_EQ(events.size(), 3);
++    EXPECT_EQ(events[0].opcode(), Event::Opcode::ControlChange);
++    EXPECT_EQ(events[0].index(), 0);
++    EXPECT_EQ(events[0].data(), 3);
++    EXPECT_EQ(events[1].opcode(), Event::Opcode::ControlChange);
++    EXPECT_EQ(events[1].index(), 32);
++    EXPECT_EQ(events[1].data(), 17);
++    EXPECT_EQ(events[2].opcode(), Event::Opcode::ProgramChange);
++    EXPECT_EQ(events[2].program(), 42);
++}
++
+ // ------------------------------------------------------------
+ // CONVERSION MIDI 1.0 -> MIDI 2.0
+ // ------------------------------------------------------------
+diff --git a/framework/vst/internal/synth/vstsynthesiser.cpp b/framework/vst/internal/synth/vstsynthesiser.cpp
+index 79bc46b51..9d11a4d87 100644
+--- a/framework/vst/internal/synth/vstsynthesiser.cpp
++++ b/framework/vst/internal/synth/vstsynthesiser.cpp
+@@ -30,6 +30,7 @@ using namespace muse::audio;
+ using namespace muse::audioplugins;
+ 
+ static const std::set<Steinberg::Vst::CtrlNumber> SUPPORTED_CONTROLLERS = {
++    Steinberg::Vst::kCtrlModWheel,
+     Steinberg::Vst::kCtrlVolume,
+     Steinberg::Vst::kCtrlExpression,
+     Steinberg::Vst::kCtrlSustainOnOff,

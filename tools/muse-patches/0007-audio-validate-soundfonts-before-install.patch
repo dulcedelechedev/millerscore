@@ -1,0 +1,558 @@
+diff --git a/framework/audio/common/rpc/irpcchannel.h b/framework/audio/common/rpc/irpcchannel.h
+index dc392269c..42ea7e22e 100644
+--- a/framework/audio/common/rpc/irpcchannel.h
++++ b/framework/audio/common/rpc/irpcchannel.h
+@@ -129,6 +129,7 @@ enum class MsgCode {
+ 
+     // SoundFont
+     LoadSoundFonts,
++    ValidateSoundFont,
+     AddSoundFont,
+     AddSoundFontData,
+ 
+@@ -228,6 +229,7 @@ inline std::string to_string(MsgCode m)
+ 
+     // SoundFont
+     case MsgCode::LoadSoundFonts: return "LoadSoundFonts";
++    case MsgCode::ValidateSoundFont: return "ValidateSoundFont";
+     case MsgCode::AddSoundFont: return "AddSoundFont";
+     case MsgCode::AddSoundFontData: return "AddSoundFontData";
+ 
+diff --git a/framework/audio/engine/internal/enginerpccontroller.cpp b/framework/audio/engine/internal/enginerpccontroller.cpp
+index 8b6c1be61..c1dfc850f 100644
+--- a/framework/audio/engine/internal/enginerpccontroller.cpp
++++ b/framework/audio/engine/internal/enginerpccontroller.cpp
+@@ -92,15 +92,22 @@ void EngineRpcController::init()
+         return make_response_ret(msg, make_ok());
+     });
+ 
+-    onLongRequest(GLOBAL_CTX_ID, MsgCode::AddSoundFont, [this](const Msg& msg) {
++    onLongRequest(GLOBAL_CTX_ID, MsgCode::ValidateSoundFont, [this](const Msg& msg) {
+         synth::SoundFontUri uri;
+         IF_ASSERT_FAILED(RpcPacker::unpack(msg.data, uri)) {
+             return make_response_ret(msg, make_ret(Err::InvalidRpcData));
+         }
+ 
+-        soundFontRepository()->addSoundFont(uri);
++        return make_response_ret(msg, soundFontRepository()->validateSoundFont(uri));
++    });
+ 
+-        return make_response_ret(msg, make_ok());
++    onLongRequest(GLOBAL_CTX_ID, MsgCode::AddSoundFont, [this](const Msg& msg) {
++        synth::SoundFontUri uri;
++        IF_ASSERT_FAILED(RpcPacker::unpack(msg.data, uri)) {
++            return make_response_ret(msg, make_ret(Err::InvalidRpcData));
++        }
++
++        return make_response_ret(msg, soundFontRepository()->addSoundFont(uri));
+     });
+ 
+     onLongRequest(GLOBAL_CTX_ID, MsgCode::AddSoundFontData, [this](const Msg& msg) {
+@@ -110,9 +117,7 @@ void EngineRpcController::init()
+             return make_response_ret(msg, make_ret(Err::InvalidRpcData));
+         }
+ 
+-        soundFontRepository()->addSoundFontData(uri, data);
+-
+-        return make_response_ret(msg, make_ok());
++        return make_response_ret(msg, soundFontRepository()->addSoundFontData(uri, data));
+     });
+ 
+     // Engine Conf
+diff --git a/framework/audio/engine/internal/synthesizers/soundfontrepository.cpp b/framework/audio/engine/internal/synthesizers/soundfontrepository.cpp
+index e7352536c..881f99a4d 100644
+--- a/framework/audio/engine/internal/synthesizers/soundfontrepository.cpp
++++ b/framework/audio/engine/internal/synthesizers/soundfontrepository.cpp
+@@ -65,15 +65,26 @@ Notification SoundFontRepository::soundFontsChanged() const
+     return m_soundFontsChanged;
+ }
+ 
+-void SoundFontRepository::addSoundFont(const SoundFontUri& uri)
++Ret SoundFontRepository::validateSoundFont(const SoundFontUri& uri)
++{
++    ONLY_AUDIO_ENGINE_THREAD;
++
++    if (uri.scheme() != "file") {
++        return make_ret(Ret::Code::NotSupported);
++    }
++
++    return FluidSoundFontParser::parseSoundFont(uri.toLocalFile()).ret;
++}
++
++Ret SoundFontRepository::addSoundFont(const SoundFontUri& uri)
+ {
+     ONLY_AUDIO_ENGINE_THREAD;
+ 
+     m_loadingSoundFontCount++;
+-    doAddSoundFont(uri, nullptr, [this]() {
+-        --m_loadingSoundFontCount;
+-        m_soundFontsChanged.notify();
+-    });
++    Ret ret = doAddSoundFont(uri);
++    --m_loadingSoundFontCount;
++    m_soundFontsChanged.notify();
++    return ret;
+ }
+ 
+ static io::path_t fileNameFromUri(const SoundFontUri& uri)
+@@ -82,7 +93,7 @@ static io::path_t fileNameFromUri(const SoundFontUri& uri)
+     return io::filename(path);
+ }
+ 
+-void SoundFontRepository::addSoundFontData(const SoundFontUri& uri, const ByteArray& data)
++Ret SoundFontRepository::addSoundFontData(const SoundFontUri& uri, const ByteArray& data)
+ {
+     ONLY_AUDIO_ENGINE_THREAD;
+ 
+@@ -93,11 +104,12 @@ void SoundFontRepository::addSoundFontData(const SoundFontUri& uri, const ByteAr
+     {
+         FILE* file = fopen(fileName.c_str(), "wb");
+         IF_ASSERT_FAILED(file) {
+-            return;
++            return make_ret(Ret::Code::UnknownError);
+         }
+         size_t wsize = fwrite(data.constChar(), sizeof(char), data.size(), file);
+         IF_ASSERT_FAILED(wsize == data.size()) {
+-            return;
++            fclose(file);
++            return make_ret(Ret::Code::UnknownError);
+         }
+         fclose(file);
+     }
+@@ -112,9 +124,10 @@ void SoundFontRepository::addSoundFontData(const SoundFontUri& uri, const ByteAr
+     }
+ 
+     m_soundFontsChanged.notify();
++    return meta.ret;
+ }
+ 
+-void SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFontsMap* cache, std::function<void()> onFinished)
++Ret SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFontsMap* cache, std::function<void()> onFinished)
+ {
+     if (cache) {
+         auto it = cache->find(uri);
+@@ -123,11 +136,11 @@ void SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFon
+             if (onFinished) {
+                 onFinished();
+             }
+-            return;
++            return make_ok();
+         }
+     }
+ 
+-    auto parseAndAdd = [this, onFinished](const SoundFontUri& uri, const SoundFontPath& path) {
++    auto parseAndAdd = [this, onFinished](const SoundFontUri& uri, const SoundFontPath& path) -> Ret {
+         RetVal<SoundFontMeta> meta = FluidSoundFontParser::parseSoundFont(path);
+ 
+         if (meta.ret) {
+@@ -140,11 +153,12 @@ void SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFon
+         if (onFinished) {
+             onFinished();
+         }
++        return meta.ret;
+     };
+ 
+     if (uri.scheme() == "file") {
+         SoundFontPath path = uri.toLocalFile();
+-        parseAndAdd(uri, path);
++        return parseAndAdd(uri, path);
+     } else {
+ #ifdef Q_OS_WASM
+         auto promise = NetworkSFLoader::load(uri);
+@@ -170,6 +184,7 @@ void SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFon
+             onFinished();
+         }
+ #endif
++        return make_ok();
+     }
+ }
+ 
+diff --git a/framework/audio/engine/internal/synthesizers/soundfontrepository.h b/framework/audio/engine/internal/synthesizers/soundfontrepository.h
+index 4331cadcd..820fcbb29 100644
+--- a/framework/audio/engine/internal/synthesizers/soundfontrepository.h
++++ b/framework/audio/engine/internal/synthesizers/soundfontrepository.h
+@@ -29,8 +29,9 @@ class SoundFontRepository : public ISoundFontRepository
+ {
+ public:
+     void loadSoundFonts(const std::vector<SoundFontUri>& uris) override;
+-    void addSoundFont(const SoundFontUri& uri) override;
+-    void addSoundFontData(const SoundFontUri& uri, const ByteArray& data) override;
++    Ret validateSoundFont(const SoundFontUri& uri) override;
++    Ret addSoundFont(const SoundFontUri& uri) override;
++    Ret addSoundFontData(const SoundFontUri& uri, const ByteArray& data) override;
+ 
+     bool isSoundFontLoaded(const std::string& name) const override;
+     bool isLoadingSoundFonts() const override;
+@@ -39,7 +40,7 @@ public:
+     async::Notification soundFontsChanged() const override;
+ 
+ private:
+-    void doAddSoundFont(const SoundFontUri& uri, const SoundFontsMap* cache = nullptr, std::function<void()> onFinished = nullptr);
++    Ret doAddSoundFont(const SoundFontUri& uri, const SoundFontsMap* cache = nullptr, std::function<void()> onFinished = nullptr);
+ 
+     SoundFontsMap m_soundFonts;
+     async::Notification m_soundFontsChanged;
+diff --git a/framework/audio/engine/isoundfontrepository.h b/framework/audio/engine/isoundfontrepository.h
+index 594d0aba8..1da151c73 100644
+--- a/framework/audio/engine/isoundfontrepository.h
++++ b/framework/audio/engine/isoundfontrepository.h
+@@ -37,8 +37,9 @@ public:
+     virtual ~ISoundFontRepository() = default;
+ 
+     virtual void loadSoundFonts(const std::vector<SoundFontUri>& uris) = 0;
+-    virtual void addSoundFont(const SoundFontUri& uri) = 0;
+-    virtual void addSoundFontData(const SoundFontUri& uri, const ByteArray& data) = 0;
++    virtual Ret validateSoundFont(const SoundFontUri& uri) = 0;
++    virtual Ret addSoundFont(const SoundFontUri& uri) = 0;
++    virtual Ret addSoundFontData(const SoundFontUri& uri, const ByteArray& data) = 0;
+ 
+     virtual bool isSoundFontLoaded(const std::string& name) const = 0;
+     virtual bool isLoadingSoundFonts() const = 0;
+diff --git a/framework/audio/main/isoundfontcontroller.h b/framework/audio/main/isoundfontcontroller.h
+index ba108de45..a641a12b0 100644
+--- a/framework/audio/main/isoundfontcontroller.h
++++ b/framework/audio/main/isoundfontcontroller.h
+@@ -23,6 +23,7 @@
+ #pragma once
+ 
+ #include "global/modularity/imoduleinterface.h"
++#include "global/async/promise.h"
+ 
+ #include "audio/common/soundfonttypes.h"
+ 
+@@ -36,6 +37,7 @@ public:
+ 
+     virtual void loadSoundFonts() = 0;
+ 
+-    virtual void addSoundFont(const synth::SoundFontUri& uri) = 0;
++    virtual async::Promise<Ret> validateSoundFont(const synth::SoundFontUri& uri) = 0;
++    virtual async::Promise<Ret> addSoundFont(const synth::SoundFontUri& uri) = 0;
+ };
+ }
+diff --git a/framework/audio/main/platform/general/generalsoundfontcontroller.cpp b/framework/audio/main/platform/general/generalsoundfontcontroller.cpp
+index cb83ee0b5..6d9f3daa6 100644
+--- a/framework/audio/main/platform/general/generalsoundfontcontroller.cpp
++++ b/framework/audio/main/platform/general/generalsoundfontcontroller.cpp
+@@ -71,7 +71,26 @@ void GeneralSoundFontController::loadSoundFonts(const std::vector<io::path_t>& p
+     channel()->send(rpc::make_request(rpc::GLOBAL_CTX_ID, MsgCode::LoadSoundFonts, RpcPacker::pack(uris)));
+ }
+ 
+-void GeneralSoundFontController::addSoundFont(const synth::SoundFontUri& uri)
++async::Promise<Ret> GeneralSoundFontController::validateSoundFont(const synth::SoundFontUri& uri)
+ {
+-    channel()->send(rpc::make_request(rpc::GLOBAL_CTX_ID, MsgCode::AddSoundFont, RpcPacker::pack(uri)));
++    return sendSoundFontRequest(MsgCode::ValidateSoundFont, uri);
++}
++
++async::Promise<Ret> GeneralSoundFontController::addSoundFont(const synth::SoundFontUri& uri)
++{
++    return sendSoundFontRequest(MsgCode::AddSoundFont, uri);
++}
++
++async::Promise<Ret> GeneralSoundFontController::sendSoundFontRequest(MsgCode code, const synth::SoundFontUri& uri)
++{
++    return async::make_promise<Ret>([this, code, uri](auto resolve) {
++        channel()->send(rpc::make_request(rpc::GLOBAL_CTX_ID, code, RpcPacker::pack(uri)), [resolve](const Msg& response) {
++            Ret ret;
++            if (!RpcPacker::unpack(response.data, ret)) {
++                ret = make_ret(Ret::Code::BadData);
++            }
++            (void)resolve(ret);
++        });
++        return async::Promise<Ret>::dummy_result();
++    });
+ }
+diff --git a/framework/audio/main/platform/general/generalsoundfontcontroller.h b/framework/audio/main/platform/general/generalsoundfontcontroller.h
+index 9b41f3978..db0eb6a2e 100644
+--- a/framework/audio/main/platform/general/generalsoundfontcontroller.h
++++ b/framework/audio/main/platform/general/generalsoundfontcontroller.h
+@@ -42,11 +42,13 @@ public:
+     GeneralSoundFontController() = default;
+ 
+     void loadSoundFonts() override;
+-    void addSoundFont(const synth::SoundFontUri& uri) override;
++    async::Promise<Ret> validateSoundFont(const synth::SoundFontUri& uri) override;
++    async::Promise<Ret> addSoundFont(const synth::SoundFontUri& uri) override;
+ 
+ private:
+ 
+     void doLoadSoundFonts();
+     void loadSoundFonts(const std::vector<io::path_t>& paths);
++    async::Promise<Ret> sendSoundFontRequest(rpc::MsgCode code, const synth::SoundFontUri& uri);
+ };
+ }
+diff --git a/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp b/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp
+index 4af37f54c..a22f075ee 100644
+--- a/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp
++++ b/framework/audio/main/platform/general/generalsoundfontinstallscenario.cpp
+@@ -43,55 +43,83 @@ void GeneralSoundFontInstallScenario::installSoundFont(const synth::SoundFontUri
+             return;
+         }
+ 
+-        RetVal<io::path_t> newPath = resolveInstallationPath(path);
+-        if (!newPath.ret) {
+-            LOGE() << "failed resolve path, err: " << newPath.ret.toString();
+-            return;
+-        }
+-
+-        if (fileSystem()->exists(newPath.val)) {
+-            std::string title = muse::trc("audio", "File already exists. Do you want to overwrite it?");
+-
+-            std::string body = muse::qtrc("audio", "File path: %1")
+-                               .arg(newPath.val.toQString()).toStdString();
+-
+-            interactive()->question(title, body, {
+-                IInteractive::Button::No,
+-                IInteractive::Button::Yes
+-            }, IInteractive::Button::Yes, IInteractive::WithIcon)
+-            .onResolve(this, [this, path, newPath](const IInteractive::Result& res) {
+-                if (res.isButton(IInteractive::Button::No)) {
+-                    LOGI() << "soundfont replacement cancelled";
+-                    return;
+-                }
+-
+-                Ret ret = doAddSoundFont(path, newPath.val);
+-                if (ret) {
+-                    interactive()->info(muse::trc("audio", "SoundFont installed"),
+-                                        muse::trc("audio", "You can assign soundfonts to instruments using the mixer panel."),
+-                                        {}, 0, IInteractive::Option::WithIcon);
+-                } else {
+-                    LOGE() << "failed add soundfont, err: " << ret.toString();
+-                }
+-            });
+-        } else {
+-            Ret ret = doAddSoundFont(path, newPath.val);
+-            if (ret) {
+-                interactive()->info(muse::trc("audio", "SoundFont installed"),
+-                                    muse::trc("audio", "You can assign soundfonts to instruments using the mixer panel."),
+-                                    {}, 0, IInteractive::Option::WithIcon);
+-            } else {
+-                LOGE() << "failed add soundfont, err: " << ret.toString();
++        soundFontController()->validateSoundFont(synth::SoundFontUri::fromLocalFile(path))
++        .onResolve(this, [this, path](const Ret& validationRet) {
++            if (!validationRet) {
++                LOGE() << "invalid soundfont, err: " << validationRet.toString();
++                interactive()->error(muse::trc("audio", "Cannot install SoundFont"),
++                                     muse::trc("audio", "The selected file is not a valid or supported SoundFont."));
++                return;
+             }
+-        }
++
++            continueInstallation(path);
++        });
+     });
+ }
+-
+ async::Notification GeneralSoundFontInstallScenario::soundFontInstalled() const
+ {
+     return m_soundFontInstalled;
+ }
+ 
++void GeneralSoundFontInstallScenario::continueInstallation(const io::path_t& path)
++{
++    RetVal<io::path_t> newPath = resolveInstallationPath(path);
++    if (!newPath.ret) {
++        LOGE() << "failed resolve path, err: " << newPath.ret.toString();
++        interactive()->error(muse::trc("audio", "Cannot install SoundFont"),
++                             muse::trc("audio", "No writable SoundFont folder is configured."));
++        return;
++    }
++
++    if (fileSystem()->exists(newPath.val)) {
++        std::string title = muse::trc("audio", "File already exists. Do you want to overwrite it?");
++
++        std::string body = muse::qtrc("audio", "File path: %1")
++                           .arg(newPath.val.toQString()).toStdString();
++
++        interactive()->question(title, body, {
++            IInteractive::Button::No,
++            IInteractive::Button::Yes
++        }, IInteractive::Button::Yes, IInteractive::WithIcon)
++        .onResolve(this, [this, path, newPath](const IInteractive::Result& res) {
++            if (res.isButton(IInteractive::Button::No)) {
++                LOGI() << "soundfont replacement cancelled";
++                return;
++            }
++
++            doAddSoundFont(path, newPath.val);
++        });
++    } else {
++        doAddSoundFont(path, newPath.val);
++    }
++}
++
++void GeneralSoundFontInstallScenario::doAddSoundFont(const io::path_t& src, const io::path_t& dst)
++{
++    Ret copyRet = fileSystem()->copy(src, dst, true /* replace */);
++    if (!copyRet) {
++        LOGE() << "failed copy soundfont, err: " << copyRet.toString();
++        interactive()->error(muse::trc("audio", "Cannot install SoundFont"),
++                             muse::trc("audio", "The SoundFont could not be copied to your SoundFonts folder."));
++        return;
++    }
++
++    synth::SoundFontUri uri = synth::SoundFontUri::fromLocalFile(dst);
++    soundFontController()->addSoundFont(uri).onResolve(this, [this](const Ret& ret) {
++        if (!ret) {
++            LOGE() << "failed add soundfont, err: " << ret.toString();
++            interactive()->error(muse::trc("audio", "Cannot install SoundFont"),
++                                 muse::trc("audio", "The SoundFont could not be loaded by the audio engine."));
++            return;
++        }
++
++        m_soundFontInstalled.notify();
++        interactive()->info(muse::trc("audio", "SoundFont installed"),
++                            muse::trc("audio", "Choose one of its presets in the DAW track inspector or Mixer."),
++                            {}, 0, IInteractive::Option::WithIcon);
++    });
++}
++
+ RetVal<io::path_t> GeneralSoundFontInstallScenario::resolveInstallationPath(const io::path_t& path) const
+ {
+     io::paths_t dirs = configuration()->userSoundFontDirectories();
+@@ -105,16 +133,3 @@ RetVal<io::path_t> GeneralSoundFontInstallScenario::resolveInstallationPath(cons
+ 
+     return RetVal<io::path_t>(make_ret(Ret::Code::UnknownError));
+ }
+-
+-Ret GeneralSoundFontInstallScenario::doAddSoundFont(const io::path_t& src, const io::path_t& dst)
+-{
+-    Ret ret = fileSystem()->copy(src, dst, true /* replace */);
+-
+-    if (ret) {
+-        synth::SoundFontUri uri = synth::SoundFontUri::fromLocalFile(dst);
+-        soundFontController()->addSoundFont(uri);
+-        m_soundFontInstalled.notify();
+-    }
+-
+-    return ret;
+-}
+diff --git a/framework/audio/main/platform/general/generalsoundfontinstallscenario.h b/framework/audio/main/platform/general/generalsoundfontinstallscenario.h
+index 3c3e452c4..9686f7d65 100644
+--- a/framework/audio/main/platform/general/generalsoundfontinstallscenario.h
++++ b/framework/audio/main/platform/general/generalsoundfontinstallscenario.h
+@@ -49,8 +49,9 @@ public:
+ 
+ private:
+ 
++    void continueInstallation(const io::path_t& path);
++    void doAddSoundFont(const io::path_t& src, const io::path_t& dst);
+     RetVal<io::path_t> resolveInstallationPath(const io::path_t& path) const;
+-    Ret doAddSoundFont(const io::path_t& src, const io::path_t& dst);
+ 
+     async::Notification m_soundFontInstalled;
+ };
+diff --git a/framework/audio/main/platform/web/websoundfontcontroller.cpp b/framework/audio/main/platform/web/websoundfontcontroller.cpp
+index bd5e03f9e..6444d350e 100644
+--- a/framework/audio/main/platform/web/websoundfontcontroller.cpp
++++ b/framework/audio/main/platform/web/websoundfontcontroller.cpp
+@@ -21,6 +21,8 @@
+  */
+ #include "websoundfontcontroller.h"
+ 
++#include <cstring>
++
+ #include "audio/common/rpc/rpcpacker.h"
+ 
+ #include "audio/engine/platform/web/networksfloader.h"
+@@ -35,15 +37,40 @@ void WebSoundFontController::loadSoundFonts()
+     // noop
+ }
+ 
+-void WebSoundFontController::addSoundFont(const synth::SoundFontUri& uri)
++async::Promise<Ret> WebSoundFontController::validateSoundFont(const synth::SoundFontUri& uri)
++{
++    return async::make_promise<Ret>([this, uri](auto resolve) {
++        synth::NetworkSFLoader::load(uri).onResolve(this, [resolve](const RetVal<ByteArray>& rv) {
++            Ret ret = rv.ret;
++            if (ret && (rv.val.size() < 12
++                        || memcmp(rv.val.constChar(), "RIFF", 4) != 0
++                        || memcmp(rv.val.constChar() + 8, "sfbk", 4) != 0)) {
++                ret = make_ret(Ret::Code::BadData);
++            }
++            (void)resolve(ret);
++        });
++        return async::Promise<Ret>::dummy_result();
++    });
++}
++
++async::Promise<Ret> WebSoundFontController::addSoundFont(const synth::SoundFontUri& uri)
+ {
+-    async::Promise<RetVal<ByteArray> > promise = synth::NetworkSFLoader::load(uri);
+-    promise.onResolve(this, [this, uri](const RetVal<ByteArray>& rv) {
+-        if (!rv.ret) {
+-            LOGE() << rv.ret.toString();
+-            return;
+-        }
+-
+-        channel()->send(rpc::make_request(Method::AddSoundFontData, RpcPacker::pack(uri, rv.val)));
++    return async::make_promise<Ret>([this, uri](auto resolve) {
++        synth::NetworkSFLoader::load(uri).onResolve(this, [this, uri, resolve](const RetVal<ByteArray>& rv) {
++            if (!rv.ret) {
++                (void)resolve(rv.ret);
++                return;
++            }
++
++            channel()->send(rpc::make_request(MsgCode::AddSoundFontData, RpcPacker::pack(uri, rv.val)),
++                            [resolve](const Msg& response) {
++                Ret ret;
++                if (!RpcPacker::unpack(response.data, ret)) {
++                    ret = make_ret(Ret::Code::BadData);
++                }
++                (void)resolve(ret);
++            });
++        });
++        return async::Promise<Ret>::dummy_result();
+     });
+ }
+diff --git a/framework/audio/main/platform/web/websoundfontcontroller.h b/framework/audio/main/platform/web/websoundfontcontroller.h
+index 782a1c301..eaabca27e 100644
+--- a/framework/audio/main/platform/web/websoundfontcontroller.h
++++ b/framework/audio/main/platform/web/websoundfontcontroller.h
+@@ -38,6 +38,7 @@ public:
+ 
+     void loadSoundFonts() override;
+ 
+-    void addSoundFont(const synth::SoundFontUri& uri) override;
++    async::Promise<Ret> validateSoundFont(const synth::SoundFontUri& uri) override;
++    async::Promise<Ret> addSoundFont(const synth::SoundFontUri& uri) override;
+ };
+ }
+diff --git a/framework/stubs/audio/soundfontcontrollerstub.cpp b/framework/stubs/audio/soundfontcontrollerstub.cpp
+index 69d893527..a05ec4407 100644
+--- a/framework/stubs/audio/soundfontcontrollerstub.cpp
++++ b/framework/stubs/audio/soundfontcontrollerstub.cpp
+@@ -28,6 +28,19 @@ void SoundFontControllerStub::loadSoundFonts()
+ {
+ }
+ 
+-void SoundFontControllerStub::addSoundFont(const synth::SoundFontUri&)
++static async::Promise<Ret> successfulPromise()
+ {
++    return async::make_promise<Ret>([](auto resolve) {
++        return resolve(make_ok());
++    });
++}
++
++async::Promise<Ret> SoundFontControllerStub::validateSoundFont(const synth::SoundFontUri&)
++{
++    return successfulPromise();
++}
++
++async::Promise<Ret> SoundFontControllerStub::addSoundFont(const synth::SoundFontUri&)
++{
++    return successfulPromise();
+ }
+diff --git a/framework/stubs/audio/soundfontcontrollerstub.h b/framework/stubs/audio/soundfontcontrollerstub.h
+index e7a7a5594..903415d4f 100644
+--- a/framework/stubs/audio/soundfontcontrollerstub.h
++++ b/framework/stubs/audio/soundfontcontrollerstub.h
+@@ -30,6 +30,7 @@ public:
+ 
+     void loadSoundFonts() override;
+ 
+-    void addSoundFont(const synth::SoundFontUri& uri) override;
++    async::Promise<Ret> validateSoundFont(const synth::SoundFontUri& uri) override;
++    async::Promise<Ret> addSoundFont(const synth::SoundFontUri& uri) override;
+ };
+ }

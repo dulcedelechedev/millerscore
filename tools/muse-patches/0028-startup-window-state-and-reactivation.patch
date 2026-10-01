@@ -1,0 +1,37 @@
+diff --git a/framework/ui/internal/guiapplication.cpp b/framework/ui/internal/guiapplication.cpp
+index 652f6c30b..e3e47948b 100644
+--- a/framework/ui/internal/guiapplication.cpp
++++ b/framework/ui/internal/guiapplication.cpp
+@@ -182,6 +182,7 @@ bool GuiApplication::loadMainWindow(const muse::modularity::ContextPtr& ctxId)
+     // The main window must be shown at this point so KDDockWidgets can read its size correctly
+     // and scale all sizes properly. https://github.com/musescore/MuseScore/issues/21148
+     QQuickWindow* window = dynamic_cast<QQuickWindow*>(obj);
++    window->setWindowStates(window->windowStates() & ~Qt::WindowMinimized);
+     window->setVisible(true);
+ 
+     m_windows[ctxId->id] = window;
+diff --git a/framework/ui/view/mainwindowbridge.cpp b/framework/ui/view/mainwindowbridge.cpp
+index 0eab17063..3e2e66601 100644
+--- a/framework/ui/view/mainwindowbridge.cpp
++++ b/framework/ui/view/mainwindowbridge.cpp
+@@ -115,10 +115,10 @@ void MainWindowBridge::showOnBack()
+ 
+ void MainWindowBridge::showOnFront()
+ {
++    m_window->setWindowStates(m_window->windowStates() & ~Qt::WindowMinimized);
+ #ifdef Q_OS_MAC
+     // On macOS, this simple way of raising the window works just fine
+     // (and the other way causes problems, since calling `show()` resizes the window if it was sized to fill the screen)
+-    m_window->setWindowStates(m_window->windowStates() & ~Qt::WindowMinimized);
+     m_window->raise();
+ #else
+     struct Holder {
+@@ -134,7 +134,7 @@ void MainWindowBridge::showOnFront()
+         QObject::disconnect(h->conn);
+         delete h;
+     });
+-    m_window->show();
++    m_window->setVisible(true);
+     m_window->requestActivate();
+ #endif
+ }

@@ -1,0 +1,211 @@
+diff --git a/framework/vst/internal/vstaudioclient.cpp b/framework/vst/internal/vstaudioclient.cpp
+index 40c266f9b..789775a08 100644
+--- a/framework/vst/internal/vstaudioclient.cpp
++++ b/framework/vst/internal/vstaudioclient.cpp
+@@ -66,6 +66,7 @@ VstAudioClient::VstAudioClient()
+ 
+ VstAudioClient::~VstAudioClient()
+ {
++    async_disconnectAll();
+     // Do not call setActive(false) or terminate() here.
+     // The component lifecycle is managed by VstPluginInstance,
+     // which defers cleanup to the main thread so that any open
+@@ -79,8 +80,25 @@ void VstAudioClient::init(PluginType type, IVstPluginInstancePtr instance)
+     }
+ 
+     m_type = type;
++    if (m_pluginPtr) {
++        m_pluginPtr->pluginParamChanged().disconnect(this);
++    }
+     m_pluginPtr = std::move(instance);
+ 
++    // The controller emits on the UI thread; Channel delivers to the audio
++    // thread where init() registered this receiver. Never mutate process queues
++    // from the native editor, and never reset timbre edits as temporary MIDI.
++    m_pluginPtr->pluginParamChanged().onReceive(this, [this](PluginParamId id, PluginParamValue value) {
++        Steinberg::int32 index = 0;
++        auto* queue = m_editorParamChanges.addParameterData(id, index);
++        if (!queue) {
++            return;
++        }
++        queue->addPoint(0, value, index);
++        ensureActivity();
++        m_needRefreshConfig = true;
++    });
++
+     if (mmcDecoderFactory()) {
+         m_mmcDecoder = mmcDecoderFactory()->makeDecoder();
+     }
+@@ -277,15 +295,32 @@ audio::samples_t VstAudioClient::process(float* output, samples_t samplesPerChan
+         extractInputSamples(samplesPerChannel, output);
+     }
+ 
++    // Keep editor values separate until processing: a MIDI stop/flush must not
++    // discard an unprocessed timbre change or replace it with a MIDI default.
++    for (Steinberg::int32 i = 0; i < m_editorParamChanges.getParameterCount(); ++i) {
++        auto* queue = m_editorParamChanges.getParameterData(i);
++        for (Steinberg::int32 pointIndex = 0; pointIndex < queue->getPointCount(); ++pointIndex) {
++            Steinberg::int32 offset = 0;
++            ParamChangeEvent param;
++            param.paramId = queue->getParameterId();
++            if (queue->getPoint(pointIndex, offset, param.value) == Steinberg::kResultOk) {
++                addParamChange(param);
++            }
++        }
++    }
++
+     if (processor->process(m_processData) != Steinberg::kResultOk) {
+         return 0;
+     }
+ 
+     m_needUpdateState = false;
+ 
++    // Parameter edits belong to one successful block for instruments and FX.
++    m_inputParamChanges.clearQueue();
++    m_editorParamChanges.clearQueue();
++
+     if (m_type == PluginType::Instrument) {
+         m_inputEvents.clear();
+-        m_inputParamChanges.clearQueue();
+ 
+         fillOutputBufferInstrument(samplesPerChannel, output);
+     } else {
+@@ -294,6 +329,11 @@ audio::samples_t VstAudioClient::process(float* output, samples_t samplesPerChan
+ 
+     processOutputEvents();
+ 
++    if (m_needRefreshConfig) {
++        m_needRefreshConfig = false;
++        m_pluginPtr->requestRefreshConfig();
++    }
++
+     return samplesPerChannel;
+ }
+ 
+diff --git a/framework/vst/internal/vstaudioclient.h b/framework/vst/internal/vstaudioclient.h
+index 198bde220..f4c282b33 100644
+--- a/framework/vst/internal/vstaudioclient.h
++++ b/framework/vst/internal/vstaudioclient.h
+@@ -23,6 +23,8 @@
+ 
+ #include <atomic>
+ 
++#include "async/asyncable.h"
++
+ #include "../ivstplugininstance.h"
+ #include "../vsttypes.h"
+ 
+@@ -31,7 +33,7 @@
+ #include "midiremote/immcdecoderfactory.h"
+ 
+ namespace muse::vst {
+-class VstAudioClient
++class VstAudioClient : public async::Asyncable
+ {
+     muse::GlobalInject<muse::audio::engine::ITransportEventsDispatcher> transportEventsDispatcher;
+     muse::GlobalInject<muse::midiremote::IMMCDecoderFactory> mmcDecoderFactory;
+@@ -93,6 +95,7 @@ private:
+ 
+     VstEventList m_inputEvents;
+     VstParameterChanges m_inputParamChanges;
++    VstParameterChanges m_editorParamChanges;
+     VstEventList m_outputEvents;
+     VstProcessData m_processData;
+     VstProcessContext m_processContext;
+@@ -105,6 +108,7 @@ private:
+ 
+     bool m_needUnprepareProcessData = false;
+     bool m_needUpdateState = false;
++    bool m_needRefreshConfig = false;
+ 
+     PluginType m_type = PluginType::Undefined;
+     audio::OutputSpec m_outputSpec;
+diff --git a/framework/vst/internal/vstcomponenthandler.cpp b/framework/vst/internal/vstcomponenthandler.cpp
+index 8eba5be83..7c5214072 100644
+--- a/framework/vst/internal/vstcomponenthandler.cpp
++++ b/framework/vst/internal/vstcomponenthandler.cpp
+@@ -21,6 +21,8 @@
+  */
+ #include "vstcomponenthandler.h"
+ 
++#include <cmath>
++
+ using namespace muse::vst;
+ using namespace muse::async;
+ 
+@@ -67,6 +69,9 @@ Steinberg::tresult VstComponentHandler::beginEdit(Steinberg::Vst::ParamID /*id*/
+ 
+ Steinberg::tresult VstComponentHandler::performEdit(Steinberg::Vst::ParamID id, Steinberg::Vst::ParamValue valueNormalized)
+ {
++    if (!std::isfinite(valueNormalized) || valueNormalized < 0.0 || valueNormalized > 1.0) {
++        return Steinberg::kInvalidArgument;
++    }
+     if (!m_advancedHandler->suppressNotify()) {
+         m_paramChanged.send(id, valueNormalized);
+     }
+diff --git a/framework/vst/internal/vstplugininstance.cpp b/framework/vst/internal/vstplugininstance.cpp
+index d8e662fa4..11a46fb96 100644
+--- a/framework/vst/internal/vstplugininstance.cpp
++++ b/framework/vst/internal/vstplugininstance.cpp
+@@ -371,6 +371,26 @@ void VstPluginInstance::refreshConfig()
+     rescanParams();
+ }
+ 
++void VstPluginInstance::requestRefreshConfig()
++{
++    ONLY_AUDIO_THREAD(threadSecurer);
++
++    // Read processor state only after process() applied the editor values.
++    // Coalesce requests while the main thread is busy serializing a plugin.
++    if (m_configRefreshQueued.exchange(true)) {
++        return;
++    }
++    Async::call(this, [this]() {
++        m_configRefreshQueued = false;
++        rescanParams();
++    }, threadSecurer()->mainThreadId());
++}
++
++async::Channel<PluginParamId, PluginParamValue> VstPluginInstance::pluginParamChanged() const
++{
++    return m_componentHandlerPtr->pluginParamChanged();
++}
++
+ bool VstPluginInstance::isLoaded() const
+ {
+     ONLY_AUDIO_OR_MAIN_THREAD(threadSecurer);
+diff --git a/framework/vst/internal/vstplugininstance.h b/framework/vst/internal/vstplugininstance.h
+index 56ec9753c..e782fb93c 100644
+--- a/framework/vst/internal/vstplugininstance.h
++++ b/framework/vst/internal/vstplugininstance.h
+@@ -60,6 +60,8 @@ public:
+ 
+     void updatePluginConfig(const muse::audio::AudioUnitConfig& config) override;
+     void refreshConfig() override;
++    void requestRefreshConfig() override;
++    async::Channel<PluginParamId, PluginParamValue> pluginParamChanged() const override;
+ 
+     void load();
+ 
+@@ -87,6 +89,7 @@ private:
+     mutable async::Channel<muse::audio::AudioUnitConfig> m_pluginSettingsChanges;
+ 
+     std::atomic_bool m_isLoaded = false;
++    std::atomic_bool m_configRefreshQueued = false;
+     async::Notification m_loadingCompleted;
+ };
+ }
+diff --git a/framework/vst/ivstplugininstance.h b/framework/vst/ivstplugininstance.h
+index 568c4d2f9..45f1208d2 100644
+--- a/framework/vst/ivstplugininstance.h
++++ b/framework/vst/ivstplugininstance.h
+@@ -47,6 +47,9 @@ public:
+ 
+     virtual void updatePluginConfig(const muse::audio::AudioUnitConfig& config) = 0;
+     virtual void refreshConfig() = 0;
++    //! Request a main-thread state scan after the processor has consumed editor changes.
++    virtual void requestRefreshConfig() = 0;
++    virtual async::Channel<PluginParamId, PluginParamValue> pluginParamChanged() const = 0;
+     virtual async::Channel<muse::audio::AudioUnitConfig> pluginSettingsChanged() const = 0;
+ };
+ }

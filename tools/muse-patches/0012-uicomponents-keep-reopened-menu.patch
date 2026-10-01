@@ -1,0 +1,17 @@
+diff --git a/framework/uicomponents/qml/Muse/UiComponents/StyledMenuLoader.qml b/framework/uicomponents/qml/Muse/UiComponents/StyledMenuLoader.qml
+index 0ca30d3fb..ce811cd1f 100644
+--- a/framework/uicomponents/qml/Muse/UiComponents/StyledMenuLoader.qml
++++ b/framework/uicomponents/qml/Muse/UiComponents/StyledMenuLoader.qml
+@@ -54,6 +54,12 @@ Loader {
+         }
+ 
+         function unloadMenu(force) {
++            // The unload runs one event loop turn after the menu closed; if the menu was opened
++            // again in between (a quick click on its button), unloading now would destroy it as
++            // soon as it appears.
++            if (loader.menu && loader.menu.isOpened) {
++                return
++            }
+             loader.active = false
+             Qt.callLater(loader.closed, force)
+         }

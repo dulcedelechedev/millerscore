@@ -1,0 +1,55 @@
+diff --git a/framework/audio/engine/internal/audiocontext.cpp b/framework/audio/engine/internal/audiocontext.cpp
+--- a/framework/audio/engine/internal/audiocontext.cpp
++++ b/framework/audio/engine/internal/audiocontext.cpp
+@@ -430,6 +430,11 @@ void AudioContext::removeTrack(const TrackId trackId)
+     m_tracks.erase(it);
+     muse::remove(m_tracksToProcessWhenIdle, trackId);
+ 
++    // The removed chain no longer processes; free its effect instances now
++    // instead of when the whole project closes.
++    track.chain->setFxChain(nullptr);
++    audioFactory()->releaseTrackFx(trackId);
++
+     if (m_prevActiveTrackId == trackId) {
+         m_prevActiveTrackId = INVALID_TRACK_ID;
+     }
+diff --git a/framework/audio/engine/internal/audiofactory.cpp b/framework/audio/engine/internal/audiofactory.cpp
+--- a/framework/audio/engine/internal/audiofactory.cpp
++++ b/framework/audio/engine/internal/audiofactory.cpp
+@@ -107,6 +107,13 @@ FxChainPtr AudioFactory::makeTrackFxChain(const TrackId trackId, const AudioFxCh
+     return chain;
+ }
+ 
++void AudioFactory::releaseTrackFx(const TrackId trackId)
++{
++    // Resolving an empty chain removes every instance a resolver holds for the
++    // track, including registered plug-in instances.
++    fxResolver()->resolveFxList(trackId, AudioFxChain(), audioEngine()->outputSpec());
++}
++
+ void AudioFactory::clearAllFx()
+ {
+     fxResolver()->clearAllFx();
+diff --git a/framework/audio/engine/internal/audiofactory.h b/framework/audio/engine/internal/audiofactory.h
+--- a/framework/audio/engine/internal/audiofactory.h
++++ b/framework/audio/engine/internal/audiofactory.h
+@@ -55,6 +55,7 @@ public:
+     // Make FX
+     FxChainPtr makeMasterFxChain(const AudioFxChain& fxChain) const override;
+     FxChainPtr makeTrackFxChain(const TrackId trackId, const AudioFxChain& fxChain) const override;
++    void releaseTrackFx(const TrackId trackId) override;
+     void clearAllFx() override;
+ };
+ }
+diff --git a/framework/audio/engine/internal/iaudiofactory.h b/framework/audio/engine/internal/iaudiofactory.h
+--- a/framework/audio/engine/internal/iaudiofactory.h
++++ b/framework/audio/engine/internal/iaudiofactory.h
+@@ -59,6 +59,8 @@ public:
+     // Make FX
+     virtual FxChainPtr makeMasterFxChain(const AudioFxChain& fxChain) const = 0;
+     virtual FxChainPtr makeTrackFxChain(const TrackId trackId, const AudioFxChain& fxChain) const = 0;
++    //! Releases the effect instances the resolvers keep for a removed track.
++    virtual void releaseTrackFx(const TrackId trackId) = 0;
+ 
+     //! NOTE For internal purposes,
+     // created effect instances are registered in an internal registry (see VST).
