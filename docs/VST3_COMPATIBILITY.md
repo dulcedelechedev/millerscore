@@ -59,6 +59,15 @@ installed Kontakt product.
 
 ## Existing scanning and loading lifecycle
 
+Native editor parameter changes now travel from `VstComponentHandler::performEdit`
+to the audio client's parameter queue. The processor consumes those changes
+before the host refreshes the plug-in's saved state. Instrument timbre edits
+survive stopping playback, and effect edits are consumed once per queued batch.
+This fixes a disconnected host path reported with Arturia controls while presets
+still worked. Fourteen tests with a fake VST3 processor cover delivery, state,
+stop and callback lifetime; a commercial Arturia plug-in has not been tested.
+This change does not add scheduled VST parameter lanes or generic MIDI CC lanes.
+
 1. Startup calls `RegisterAudioPluginsScenario::updatePluginsRegistry()`.
 2. The VST scanner combines Steinberg default module paths with recursive
    custom-folder results and de-duplicates them.

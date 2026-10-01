@@ -69,6 +69,14 @@ Classification: **REUSE**. Instrument switching should update `AudioInputParams`
 
 `src/musesounds/` is primarily the Muse Sounds catalog/install/update experience. It is separate from the runtime sampler resolver and must not become a second playback path.
 
+The minimum supported MuseSampler API is 0.101. The loader adapts the required
+0.101–0.104 exports and retains the modern 0.105 interface, following the
+[stable MuseScore Studio adapter](https://raw.githubusercontent.com/musescore/MuseScore/v4.6.5/src/framework/musesampler/internal/libhandler.h).
+Previously, rejecting these older compatible libraries could leave the sound
+picker without a Muse Sounds list. Versioned unit and native DLL fixtures
+verify enumeration, presets and lifecycle; they do not establish availability
+of proprietary samples or account entitlements on another computer.
+
 Classification: **REUSE** sound discovery, loading, presets, MPE interpretation, and rendering. **ADAPT** only the upstream performance projection. Arbitrary DAW CC-lane coverage and sampler multi-output routing are not demonstrated by the current public path and are therefore a **GAP**.
 
 ### SoundFont and FluidSynth

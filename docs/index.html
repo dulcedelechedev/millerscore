@@ -147,6 +147,15 @@ details{margin:.8rem 0;padding:.2rem 1rem;border:1px solid var(--line);border-ra
 <div class="note warning"><p><strong>Generic CC automation is sent only to MS Basic/SoundFont.</strong> The 108 editable numbered lanes send raw 7-bit values from 0 to 127 during main score playback. Use CC7 for volume, CC10 for pan, CC11 for expression, and CC64 for sustain; the audible response depends on the SoundFont instrument. Some controllers, including undefined numbers and LSB partners, may be ignored. Application WAV-export checks verify CC7, CC10, CC11, and CC64. The 20 protected lanes are never sent. Muse Sounds, VST3, and external MIDI output do not receive these generic lanes.</p>
 <p>A CC11 lane replaces notation expression messages, and CC64/CC66 lanes replace notation sustain/sostenuto messages, on the corresponding channels while the lane is present. Note previews do not apply generic CC automation; use main playback to hear it. The dedicated <strong>Channel volume</strong>, <strong>Channel panning</strong>, and <strong>Channel pitch</strong> controls keep their separate playback paths.</p></div>
 <p>Viewing a lane does not send its MIDI command. CC curves are scoped to the selected instrument track. Select the controller by its number as well as its name, edit its points, and use Undo/Redo for supported curve changes. Opening another lane must not be used as a reset or panic command.</p>
+<h3 id="cc-drawing-title">Draw CC automation</h3>
+<ol>
+<li>Open <strong>DAW</strong> and <strong>Piano Roll</strong>, select an instrument track, then choose a controller under <strong>Control</strong>, such as <strong>Common CC → CC7 — Channel Volume</strong>.</li>
+<li>Click the <strong>Pencil</strong> button beside Control. Click or drag in the lane below the notes to draw stepped points.</li>
+<li>Hold <kbd>Alt</kbd> while dragging to draw a continuous curve. Alt-drag also temporarily draws a curve with Pencil off.</li>
+<li>Release the mouse to apply the whole stroke. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes it in one step; <kbd>Esc</kbd> cancels an unfinished stroke.</li>
+</ol>
+<p>The stroke replaces existing points only inside its drawn time range. Points outside that range are retained. The timeline grid also applies to drawing; turn <strong>Snap</strong> off for finer freehand detail. Turn Pencil off to select and move points. Double-click empty space to add a point, or select a point and press <kbd>Delete</kbd> to remove it. Switching tracks or controllers cancels an unfinished stroke.</p>
+<p>This gesture follows Logic Pro's documented Pencil behavior with the Option-for-curved setting, using Alt on Windows. See <a href="https://support.apple.com/guide/logicpro/add-automation-points-lgcpb1a3327b/mac">Apple's automation drawing guide</a>. Bending an existing segment with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+drag is a separate gesture.</p>
 <!-- cc-visuals:start -->
 <h3 id="cc-visuals-title">Understand a CC lane</h3>
 <p>Three diagrams to read a lane, follow its curve, and distinguish common controllers.</p>

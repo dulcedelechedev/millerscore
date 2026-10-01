@@ -35,8 +35,16 @@ export support. The earlier per-note validation record below remains historical.
   playhead.
 - Note stems use preview while dragging and commit once on release. Escape
   discards the preview.
-- Channel points are added on the snapped timeline, dragged vertically, removed
-  with right-click, and reset as a single batch edit.
+- The channel lane has a dedicated **Pencil** button beside **Control**.
+  Click-drag draws stepped points; **Alt+drag** draws a continuous curve,
+  including temporarily with Pencil off. Releasing commits one batch, so
+  **Ctrl+Z** undoes the whole stroke. **Esc** cancels its preview. Drawing
+  replaces points inside the swept time range and preserves points outside it.
+  The timeline's Snap setting applies; turn Snap off for finer freehand detail.
+  Changing tracks or controllers cancels an unfinished stroke.
+- With Pencil off, double-click empty space to add a channel point, click the
+  line to insert one, drag a point to move its value or time, and select it then
+  press **Delete** to remove it. Reset clears the selected curve as one batch.
 - Note changes use the performance overlay's official Undo command. Channel
   changes use `INotationAutomation::editPoints`, including batch reset.
 - Reset removes only the selected note property or the selected channel curve.
@@ -44,6 +52,11 @@ export support. The earlier per-note validation record below remains historical.
   and Redo reach their supported playback paths without reopening the project.
 
 ## External behavior references
+
+- [Logic Pro](https://support.apple.com/guide/logicpro/add-automation-points-lgcpb1a3327b/mac)
+  documents Pencil strokes and configurable Option-for-curved/stepped editing.
+  MillerScore uses Alt for continuous curves and the unmodified Pencil for
+  steps. Ctrl+Shift+drag bends an existing segment as a separate operation.
 
 - [FL Studio](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/pianoroll.htm)
   groups velocity, pan, release, Mod X/Y and pitch as Piano Roll note

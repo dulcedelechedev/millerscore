@@ -148,6 +148,15 @@ details{margin:.8rem 0;padding:.2rem 1rem;border:1px solid var(--line);border-ra
 <div class="note warning"><p><strong>A automação genérica de CC é enviada somente ao MS Basic/SoundFont.</strong> As 108 faixas numeradas editáveis enviam valores brutos de 7 bits, de 0 a 127, durante a reprodução principal da partitura. Use CC7 para volume, CC10 para panorama, CC11 para expressão e CC64 para sustain; a resposta audível depende do instrumento da SoundFont. Alguns controladores, incluindo números indefinidos e pares LSB, podem ser ignorados. Testes de exportação WAV no aplicativo confirmam CC7, CC10, CC11 e CC64. As 20 faixas protegidas nunca são enviadas. Muse Sounds, VST3 e saída MIDI externa não recebem essas faixas genéricas.</p>
 <p>Uma faixa CC11 substitui as mensagens de expressão da notação, e faixas CC64/CC66 substituem as mensagens de sustain/sostenuto da notação, nos canais correspondentes enquanto a faixa estiver presente. A pré-escuta de notas não aplica automação genérica de CC; use a reprodução principal para ouvi-la. Os controles dedicados <strong lang="en">Channel volume</strong>, <strong lang="en">Channel panning</strong> e <strong lang="en">Channel pitch</strong> mantêm seus caminhos separados de reprodução.</p></div>
 <p>Visualizar uma faixa não envia seu comando MIDI. As curvas de CC se aplicam à pista de instrumento selecionada. Selecione o controlador pelo número e pelo nome, edite seus pontos e use <span lang="en">Undo/Redo</span> para alterações de curva compatíveis. Abrir outra faixa não deve ser usado como comando de reinicialização ou de emergência (panic).</p>
+<h3 id="cc-drawing-title">Desenhe a automação de CC</h3>
+<ol>
+<li>Abra <strong lang="en">DAW</strong> e <strong lang="en">Piano Roll</strong>, selecione uma pista de instrumento e escolha um controlador em <strong lang="en">Control</strong>, como <strong lang="en">Common CC → CC7 — Channel Volume</strong>.</li>
+<li>Clique em <strong lang="en">Pencil</strong>, ao lado de Control. Clique ou arraste na faixa abaixo das notas para desenhar pontos em degraus.</li>
+<li>Segure <kbd>Alt</kbd> enquanto arrasta para desenhar uma curva contínua. Alt+arrastar também desenha temporariamente com o lápis desligado.</li>
+<li>Solte o mouse para aplicar o traço inteiro. <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz em uma única etapa; <kbd>Esc</kbd> cancela um traço ainda em andamento.</li>
+</ol>
+<p>O traço substitui os pontos existentes apenas dentro do intervalo de tempo desenhado. Os pontos fora dele são preservados. O desenho também segue a grade temporal; desligue <strong lang="en">Snap</strong> para detalhes mais finos à mão livre. Desligue Pencil para selecionar e mover pontos. Um clique duplo no espaço vazio adiciona um ponto; selecione um ponto e pressione <kbd>Delete</kbd> para removê-lo. Trocar de pista ou controlador cancela um traço ainda em andamento.</p>
+<p>O gesto segue o lápis documentado pelo Logic Pro com a configuração de Option para curvas, usando Alt no Windows. Veja o <a href="https://support.apple.com/guide/logicpro/add-automation-points-lgcpb1a3327b/mac">guia de desenho de automação da Apple</a>. Curvar um segmento existente com <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+arrastar é um gesto separado.</p>
 <!-- cc-visuals:start -->
 <h3 id="cc-visuals-title">Entenda uma faixa de CC</h3>
 <p>Três diagramas para ler uma faixa, acompanhar a curva e distinguir controles comuns.</p>
@@ -499,3 +508,4 @@ details{margin:.8rem 0;padding:.2rem 1rem;border:1px solid var(--line);border-ra
 </div>
 </body>
 </html>
+

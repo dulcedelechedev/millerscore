@@ -1,6 +1,6 @@
 # MIDI controller capability matrix
 
-Status date: 2026-09-30. The generic SoundFont CC route is updated below; unrelated backend capabilities retain their earlier scope. “Preserve” means the new project model can retain the
+Status date: 2026-10-01. The generic SoundFont CC route is updated below; unrelated backend capabilities retain their earlier scope. “Preserve” means the new project model can retain the
 lane; it does not imply audible playback. Capabilities below describe the real
 current adapters, not what the underlying SDK could theoretically do.
 
@@ -21,7 +21,7 @@ APIs and adapters.
 
 ## Current backend matrix
 
-| Message/lane | Project preserve | FluidSynth 2.3.3 adapter | VST3 adapter | MuseSampler >=0.105 | External MIDI |
+| Message/lane | Project preserve | FluidSynth 2.3.3 adapter | VST3 adapter | MuseSampler >=0.101 | External MIDI |
 | --- | --- | --- | --- | --- | --- |
 | Note-on velocity | Yes, EID overlay | Yes | Yes | No in main note API | Notes only through FluidSynth path |
 | Release velocity | Stable ID only | No route | No route | No API | No authoritative model |
@@ -42,6 +42,12 @@ APIs and adapters.
 | Per-note pan/cutoff/resonance | Stable IDs only | No safe isolation | No Note Expression contract in adapter | No loaded API | Not claimed |
 
 ## UI capability rule
+
+MuseSampler selects the required API exports by version, adapting 0.101–0.104
+and retaining the modern 0.105 path. Optional features still depend on the
+installed version. This compatibility correction does not add generic CC-lane
+dispatch to Muse Sounds. Proprietary runtime, samples and account entitlements
+remain separate from the tested API fixtures.
 
 The generic lane selector distinguishes safe editing and persistence from
 backend dispatch. SoundFont lanes explain that the selected instrument may

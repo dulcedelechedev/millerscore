@@ -18,11 +18,27 @@ para reproduzir as faixas genéricas de CC.
 
 ![Piano roll e faixa de intensidade da DAW, com o inspetor de sons MS Basic](../../marketing/itchio-clean-v0.1.0/02-piano-roll-1600x1000.png)
 
-## 3. Adicione uma curva de CC7
+## 3. Desenhe CC7 com o lápis
 
 Selecione a pista Piano e **CC7 — Channel Volume** para controlar o volume do
-instrumento receptor da SoundFont. A curva mostrada tem três pontos; seus
-valores são inteiros MIDI de 0 a 127.
+instrumento receptor da SoundFont. Os valores dos controladores são inteiros
+MIDI de 0 a 127.
+
+Use **Pencil**, ao lado de **Control**, e arraste na faixa para desenhar pontos
+em degraus. Segure **Alt** enquanto arrasta para uma curva contínua; Alt+arrastar
+também funciona com o lápis desligado. Solte para aplicar o traço inteiro,
+**Ctrl+Z** para desfazer ou **Esc** para cancelar antes de soltar. Desligue
+**Snap** para detalhes mais finos à mão livre.
+
+Esta captura real mostra o botão Pencil e um novo traço em degraus. Os pontos
+que já existiam fora do traço continuam no mesmo lugar.
+
+![Piano roll com Pencil ativado e novos pontos de CC7 desenhados em degraus](../assets/cc-pencil-capture.png)
+
+A [imagem promocional simples](../../marketing/itchio-clean-v0.1.0/05-cc-pencil.png)
+usa a mesma captura com três instruções curtas em inglês.
+
+O exemplo antigo abaixo tem três pontos e é anterior ao botão Pencil.
 
 ![Pista Piano com uma curva de três pontos de CC7 Channel Volume e som MS Basic selecionado](../../marketing/itchio-clean-v0.1.0/03-midi-controller-lanes-1600x1000.png)
 
